@@ -32,6 +32,11 @@ var (
 		"Params": map[string]interface{}{
 			"lower": "P1L",
 		},
+		"CurrentSection": map[string]interface{}{
+			"Params": map[string]interface{}{
+				"lower": "pcurrentsection",
+			},
+		},
 		"Site": map[string]interface{}{
 			"Params": map[string]interface{}{
 				"lower": "P2L",
@@ -58,6 +63,7 @@ var (
 {{ $data := .Site.Data }}
 {{ $notparam := .NotParam }}
 
+PCurrentSection: {{ .CurrentSection.Params.LOWER }}
 P1: {{ .Params.LOWER }}
 P1_2: {{ $.Params.LOWER }}
 P1_3: {{ $page.Params.LOWER }}
@@ -164,6 +170,9 @@ func TestParamsKeysToLower(t *testing.T) {
 	require.Contains(t, result, "F2: themes/P2L-theme")
 	require.Contains(t, result, "F3: themes/P2L-theme")
 
+	// Issue #5068 and similar
+	require.Contains(t, result, "PCurrentSection: pcurrentsection")
+
 }
 
 func BenchmarkTemplateParamsKeysToLower(b *testing.B) {
@@ -190,7 +199,7 @@ func BenchmarkTemplateParamsKeysToLower(b *testing.B) {
 	}
 }
 
-func TestParamsKeysToLowerVars(t *testing.T) {
+func TestParamsKeysToLowVars(t *testing.T) {
 	t.Parallel()
 	var (
 		ctx = map[string]interface{}{

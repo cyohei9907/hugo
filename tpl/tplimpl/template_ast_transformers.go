@@ -24,11 +24,21 @@ import (
 // decl keeps track of the variable mappings, i.e. $mysite => .Site etc.
 type decl map[string]string
 
+const (
+	paramsIdentifier = "Params"
+)
+
+// Containers that may contain Params that we will not touch.
+var reservedContainers = map[string]bool{
+	// Aka .Site.Data.Params which must stay case sensitive.
+	"Data": true,
+}
+
 var paramsPaths = [][]string{
 	{"Params"},
 	{"Site", "Params"},
 
-	// Site and Pag referenced from shortcodes
+	// Site and Page referenced from shortcodes
 	{"Page", "Site", "Params"},
 	{"Page", "Params"},
 
@@ -175,17 +185,16 @@ func (d decl) indexOfReplacementStart(idents []string) int {
 		return -1
 	}
 
-	if !firstIsVar {
-		found := false
-		for _, paramsPath := range paramsPaths {
-			if first == paramsPath[0] {
-				found = true
-				break
-			}
+	var lookFurther bool
+	for _, ident := range idents {
+		if ident == "Params" || ident[0] == '$' {
+			lookFurther = true
+			break
 		}
-		if !found {
-			return -1
-		}
+	}
+
+	if !lookFurther {
+		return -1
 	}
 
 	var (
@@ -244,13 +253,27 @@ func (d decl) indexOfReplacementStart(idents []string) int {
 
 	resolvedIdents = append(replaced, idents[1:]...)
 
-	for _, paramPath := range paramsPaths {
-		if index := indexOfFirstRealIdentAfterWords(resolvedIdents, idents, paramPath...); index != -1 {
-			return index
+	paramIdx := -1
+	for i, ident := range resolvedIdents {
+		if ident == paramsIdentifier {
+			if i == len(resolvedIdents)-2 {
+				if i > 0 {
+					container := resolvedIdents[i-1]
+					if reservedContainers[container] {
+						break
+					}
+				}
+				paramIdx = i
+			}
+			break
 		}
 	}
 
-	return -1
+	if paramIdx == -1 {
+		return -1
+	}
+
+	return len(idents) - 1
 
 }
 
