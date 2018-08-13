@@ -31,6 +31,7 @@ var (
 		"Slice":    []int{1, 3},
 		"Params": map[string]interface{}{
 			"lower": "P1L",
+			"slice": []int{1, 3},
 		},
 		"CurrentSection": map[string]interface{}{
 			"Params": map[string]interface{}{
@@ -115,6 +116,8 @@ RANGE: {{ . }}: {{ $.Params.LOWER }}
 F1: {{ printf "themes/%s-theme" .Site.Params.LOWER }}
 F2: {{ Echo (printf "themes/%s-theme" $lower) }}
 F3: {{ Echo (printf "themes/%s-theme" .Site.Params.LOWER) }}
+
+PSLICE: {{ range .Params.SLICE }}PSLICE{{.}}|{{ end }}
 `
 )
 
@@ -170,7 +173,9 @@ func TestParamsKeysToLower(t *testing.T) {
 	require.Contains(t, result, "F2: themes/P2L-theme")
 	require.Contains(t, result, "F3: themes/P2L-theme")
 
-	// Issue #5068 and similar
+	require.Contains(t, result, "PSLICE: PSLICE1|PSLICE3|")
+
+	// Issue #5068
 	require.Contains(t, result, "PCurrentSection: pcurrentsection")
 
 }
@@ -199,13 +204,16 @@ func BenchmarkTemplateParamsKeysToLower(b *testing.B) {
 	}
 }
 
-func TestParamsKeysToLowVars(t *testing.T) {
+func TestParamsKeysToLowerVars(t *testing.T) {
 	t.Parallel()
 	var (
 		ctx = map[string]interface{}{
 			"Params": map[string]interface{}{
 				"colors": map[string]interface{}{
 					"blue": "Amber",
+					"pretty": map[string]interface{}{
+						"first": "Indigo",
+					},
 				},
 			},
 		}
@@ -214,8 +222,14 @@ func TestParamsKeysToLowVars(t *testing.T) {
 		paramsTempl = `
 {{$__amber_1 := .Params.Colors}}
 {{$__amber_2 := $__amber_1.Blue}}
+{{$__amber_3 := $__amber_1.Pretty}}
+{{$__amber_4 := .Params}}
+
 Color: {{$__amber_2}}
 Blue: {{ $__amber_1.Blue}}
+Pretty First1: {{ $__amber_3.First}}
+Pretty First2: {{ $__amber_1.Pretty.First}}
+Pretty First3: {{ $__amber_4.COLORS.PRETTY.FIRST}}
 `
 	)
 
@@ -234,6 +248,10 @@ Blue: {{ $__amber_1.Blue}}
 	result := b.String()
 
 	require.Contains(t, result, "Color: Amber")
+	require.Contains(t, result, "Blue: Amber")
+	require.Contains(t, result, "Pretty First1: Indigo")
+	require.Contains(t, result, "Pretty First2: Indigo")
+	require.Contains(t, result, "Pretty First3: Indigo")
 
 }
 

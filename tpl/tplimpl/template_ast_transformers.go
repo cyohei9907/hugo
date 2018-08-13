@@ -34,17 +34,6 @@ var reservedContainers = map[string]bool{
 	"Data": true,
 }
 
-var paramsPaths = [][]string{
-	{"Params"},
-	{"Site", "Params"},
-
-	// Site and Page referenced from shortcodes
-	{"Page", "Site", "Params"},
-	{"Page", "Params"},
-
-	{"Site", "Language", "Params"},
-}
-
 type templateContext struct {
 	decl     decl
 	visited  map[string]bool
@@ -165,6 +154,7 @@ func (c *templateContext) updateIdentsIfNeeded(idents []string) {
 	for i := index; i < len(idents); i++ {
 		idents[i] = strings.ToLower(idents[i])
 	}
+
 }
 
 // indexOfReplacementStart will return the index of where to start doing replacement,
@@ -177,17 +167,21 @@ func (d decl) indexOfReplacementStart(idents []string) int {
 		return -1
 	}
 
-	first := idents[0]
-	firstIsVar := first[0] == '$'
-
-	if l == 1 && !firstIsVar {
-		// This can not be a Params.x
-		return -1
+	if l == 1 {
+		first := idents[0]
+		if first == paramsIdentifier || first[0] == '$' {
+			// This can not be a Params.x
+			return -1
+		}
 	}
 
 	var lookFurther bool
+	var needsVarExpansion bool
 	for _, ident := range idents {
-		if ident == "Params" || ident[0] == '$' {
+		if ident[0] == '$' {
+			lookFurther = true
+			needsVarExpansion = true
+		} else if ident == paramsIdentifier {
 			lookFurther = true
 			break
 		}
@@ -197,10 +191,64 @@ func (d decl) indexOfReplacementStart(idents []string) int {
 		return -1
 	}
 
+	var resolvedIdents []string
+
+	if !needsVarExpansion {
+		resolvedIdents = idents
+	} else {
+		var ok bool
+		resolvedIdents, ok = d.resolveVariables(idents)
+		if !ok {
+			return -1
+		}
+	}
+
+	var paramFound bool
+	for i, ident := range resolvedIdents {
+		if ident == paramsIdentifier {
+			if i > 0 {
+				container := resolvedIdents[i-1]
+				if reservedContainers[container] {
+					// .Data.Params.someKey
+					return -1
+				}
+			}
+			paramFound = true
+
+			break
+		}
+	}
+
+	if !paramFound {
+		return -1
+	}
+
+	var paramSeen bool
+	idx := -1
+	for i, ident := range idents {
+		if ident == "" || ident[0] == '$' {
+			continue
+		}
+		if ident == paramsIdentifier {
+			paramSeen = true
+			idx = -1
+		} else {
+			if paramSeen {
+				return i
+			}
+			if idx == -1 {
+				idx = i
+			}
+		}
+	}
+	return idx
+
+}
+
+func (d decl) resolveVariables(idents []string) ([]string, bool) {
 	var (
-		resolvedIdents []string
-		replacements   []string
-		replaced       []string
+		replacements []string
+		replaced     []string
 	)
 
 	// An Ident can start out as one of
@@ -215,7 +263,7 @@ func (d decl) indexOfReplacementStart(idents []string) int {
 
 		if i > 20 {
 			// bail out
-			return -1
+			return nil, false
 		}
 
 		potentialVar := replacements[i]
@@ -234,7 +282,7 @@ func (d decl) indexOfReplacementStart(idents []string) int {
 
 		if !ok {
 			// Temporary range vars. We do not care about those.
-			return -1
+			return nil, false
 		}
 
 		replacement = strings.TrimPrefix(replacement, ".")
@@ -251,66 +299,6 @@ func (d decl) indexOfReplacementStart(idents []string) int {
 		}
 	}
 
-	resolvedIdents = append(replaced, idents[1:]...)
+	return append(replaced, idents[1:]...), true
 
-	paramIdx := -1
-	for i, ident := range resolvedIdents {
-		if ident == paramsIdentifier {
-			if i == len(resolvedIdents)-2 {
-				if i > 0 {
-					container := resolvedIdents[i-1]
-					if reservedContainers[container] {
-						break
-					}
-				}
-				paramIdx = i
-			}
-			break
-		}
-	}
-
-	if paramIdx == -1 {
-		return -1
-	}
-
-	return len(idents) - 1
-
-}
-
-func indexOfFirstRealIdentAfterWords(resolvedIdents, idents []string, words ...string) int {
-	if !sliceStartsWith(resolvedIdents, words...) {
-		return -1
-	}
-
-	for i, ident := range idents {
-		if ident == "" || ident[0] == '$' {
-			continue
-		}
-		found := true
-		for _, word := range words {
-			if ident == word {
-				found = false
-				break
-			}
-		}
-		if found {
-			return i
-		}
-	}
-
-	return -1
-}
-
-func sliceStartsWith(slice []string, words ...string) bool {
-
-	if len(slice) < len(words) {
-		return false
-	}
-
-	for i, word := range words {
-		if word != slice[i] {
-			return false
-		}
-	}
-	return true
 }
