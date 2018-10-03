@@ -15,7 +15,6 @@ package hugolib
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -28,6 +27,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	_errors "github.com/pkg/errors"
 
 	"github.com/gohugoio/hugo/common/maps"
 	"github.com/gohugoio/hugo/publisher"
@@ -754,8 +755,6 @@ func (s *Site) processPartial(events []fsnotify.Event) (whatChanged, error) {
 			return whatChanged{}, err
 		}
 
-		s.TemplateHandler().PrintErrors()
-
 		for i := 1; i < len(sites); i++ {
 			site := sites[i]
 			var err error
@@ -861,7 +860,7 @@ func (s *Site) handleDataFile(r source.ReadableFile) error {
 
 	f, err := r.Open()
 	if err != nil {
-		return fmt.Errorf("Failed to open data file %q: %s", r.LogicalName(), err)
+		return _errors.Wrapf(err, "Failed to open data file %q:", r.LogicalName())
 	}
 	defer f.Close()
 
@@ -942,7 +941,7 @@ func (s *Site) handleDataFile(r source.ReadableFile) error {
 func (s *Site) readData(f source.ReadableFile) (interface{}, error) {
 	file, err := f.Open()
 	if err != nil {
-		return nil, fmt.Errorf("readData: failed to open data file: %s", err)
+		return nil, _errors.Wrap(err, "readData: failed to open data file")
 	}
 	defer file.Close()
 	content := helpers.ReaderToBytes(file)
@@ -1566,17 +1565,15 @@ func (s *Site) preparePages() error {
 }
 
 func errorCollator(results <-chan error, errs chan<- error) {
-	errMsgs := []string{}
-	for err := range results {
-		if err != nil {
-			errMsgs = append(errMsgs, err.Error())
-		}
+	var err error
+	for e := range results {
+		// TODO(bep)
+		err = e
+		
 	}
-	if len(errMsgs) == 0 {
-		errs <- nil
-	} else {
-		errs <- errors.New(strings.Join(errMsgs, "\n"))
-	}
+
+	errs <- err
+
 	close(errs)
 }
 
@@ -1650,8 +1647,7 @@ func (s *Site) renderAndWriteXML(statCounter *uint64, name string, targetPath st
 	renderBuffer.WriteString("<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\" ?>\n")
 
 	if err := s.renderForLayouts(name, d, renderBuffer, layouts...); err != nil {
-		helpers.DistinctWarnLog.Println(err)
-		return nil
+		return err
 	}
 
 	var path string
@@ -1684,8 +1680,8 @@ func (s *Site) renderAndWritePage(statCounter *uint64, name string, targetPath s
 	defer bp.PutBuffer(renderBuffer)
 
 	if err := s.renderForLayouts(p.Kind, p, renderBuffer, layouts...); err != nil {
-		helpers.DistinctWarnLog.Println(err)
-		return nil
+
+		return err
 	}
 
 	if renderBuffer.Len() == 0 {
@@ -1735,44 +1731,26 @@ func (s *Site) renderAndWritePage(statCounter *uint64, name string, targetPath s
 func (s *Site) renderForLayouts(name string, d interface{}, w io.Writer, layouts ...string) (err error) {
 	var templ tpl.Template
 
-	defer func() {
-		if r := recover(); r != nil {
-			templName := ""
-			if templ != nil {
-				templName = templ.Name()
-			}
-			s.DistinctErrorLog.Printf("Failed to render %q: %s", templName, r)
-			s.DistinctErrorLog.Printf("Stack Trace:\n%s", stackTrace(1200))
-
-			// TOD(bep) we really need to fix this. Also see below.
-			if !s.running() && !testMode {
-				os.Exit(-1)
-			}
-		}
-	}()
-
 	templ = s.findFirstTemplate(layouts...)
 	if templ == nil {
-		return fmt.Errorf("[%s] Unable to locate layout for %q: %s\n", s.Language.Lang, name, layouts)
+		s.Log.WARN.Printf("[%s] Unable to locate layout for %q: %s\n", s.Language.Lang, name, layouts)
+		return nil
 	}
 
 	if err = templ.Execute(w, d); err != nil {
 		// Behavior here should be dependent on if running in server or watch mode.
-		if p, ok := d.(*PageOutput); ok {
-			if p.File != nil {
+		/*if p, ok := d.(*PageOutput); ok {
+			if p.File != nil && p.File.Dir() != "" {
 				s.DistinctErrorLog.Printf("Error while rendering %q in %q: %s", name, p.File.Dir(), err)
 			} else {
 				s.DistinctErrorLog.Printf("Error while rendering %q: %s", name, err)
 			}
 		} else {
 			s.DistinctErrorLog.Printf("Error while rendering %q: %s", name, err)
-		}
-		if !s.running() && !testMode {
-			// TODO(bep) check if this can be propagated
-			os.Exit(-1)
-		} else if testMode {
-			return
-		}
+		}*/
+
+		// TODO(bep) errors check this and above
+		return err
 	}
 
 	return

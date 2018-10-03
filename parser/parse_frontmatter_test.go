@@ -23,6 +23,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/gohugoio/hugo/common/herrors"
+
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -34,7 +38,7 @@ const (
 	contentHTML                                 = "    <html><body></body></html>"
 	contentLinefeedAndHTML                      = "\n<html><body></body></html>"
 	contentIncompleteEndFrontmatterDelim        = "---\ntitle: incomplete end fm delim\n--\nincomplete frontmatter delim"
-	contentMissingEndFrontmatterDelim           = "---\ntitle: incomplete end fm delim\nincomplete frontmatter delim"
+	contentMissingEndFrontmatterDelim           = "---\ntitle: incomplete end fm delim\n\nincomplete frontmatter delim"
 	contentSlugWorking                          = "---\ntitle: slug doc 2\nslug: slug-doc-2\n\n---\nslug doc 2 content"
 	contentSlugWorkingVariation                 = "---\ntitle: slug doc 3\nslug: slug-doc 3\n---\nslug doc 3 content"
 	contentSlugBug                              = "---\ntitle: slug doc 2\nslug: slug-doc-2\n---\nslug doc 2 content"
@@ -55,20 +59,24 @@ func pageMust(p Page, err error) *page {
 }
 
 func TestDegenerateCreatePageFrom(t *testing.T) {
+	assert := require.New(t)
+
 	tests := []struct {
-		content string
+		content    string
+		lineNumber int
 	}{
-		{contentMissingEndFrontmatterDelim},
-		{contentIncompleteEndFrontmatterDelim},
+		{contentMissingEndFrontmatterDelim, 2},
+		{contentIncompleteEndFrontmatterDelim, 2},
 	}
 
 	for _, test := range tests {
 		for _, ending := range lineEndings {
 			test.content = strings.Replace(test.content, "\n", ending, -1)
 			_, err := ReadFrom(strings.NewReader(test.content))
-			if err == nil {
-				t.Errorf("Content should return an err:\n%q\n", test.content)
-			}
+			assert.Error(err)
+			le, ok := err.(herrors.FileError)
+			assert.True(ok)
+			assert.Equal(test.lineNumber, le.LineNumber())
 		}
 	}
 }

@@ -14,6 +14,7 @@
 package hugio
 
 import (
+	"bytes"
 	"io"
 	"strings"
 )
@@ -50,4 +51,24 @@ func NewReadSeekerNoOpCloser(r ReadSeeker) ReadSeekerNoOpCloser {
 // from the given string.
 func NewReadSeekerNoOpCloserFromString(content string) ReadSeekerNoOpCloser {
 	return ReadSeekerNoOpCloser{strings.NewReader(content)}
+}
+
+// LineCountingReader wraps io.Reader and counts lines, i.e. increments when
+// it sees a '\n'.
+type LineCountingReader struct {
+	r     io.Reader
+	Count int
+}
+
+// NewLineCountingReader creates a new reader that counts the lines read from r.
+func NewLineCountingReader(r io.Reader) *LineCountingReader {
+	return &LineCountingReader{r: r}
+}
+
+func (l *LineCountingReader) Read(p []byte) (n int, err error) {
+	n, err = l.r.Read(p)
+	if n > 0 {
+		l.Count += bytes.Count(p[:n], []byte{'\n'})
+	}
+	return
 }

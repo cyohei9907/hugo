@@ -1,4 +1,4 @@
-// Copyright 2017 The Hugo Authors. All rights reserved.
+// Copyright 2018 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,32 +11,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package partials
+package hugio
 
 import (
+	"io/ioutil"
+	"strings"
 	"testing"
 
-	"github.com/gohugoio/hugo/common/loggers"
-	"github.com/gohugoio/hugo/deps"
-	"github.com/gohugoio/hugo/tpl/internal"
 	"github.com/stretchr/testify/require"
 )
 
-func TestInit(t *testing.T) {
-	var found bool
-	var ns *internal.TemplateFuncsNamespace
+func TestLineCountingReader(t *testing.T) {
+	assert := require.New(t)
+	r := strings.NewReader(`L1
+L2
+L3
+`)
+	counter := NewLineCountingReader(r)
 
-	for _, nsf := range internal.TemplateFuncsNamespaceRegistry {
-		ns = nsf(&deps.Deps{
-			BuildStartListeners: &deps.Listeners{},
-			Log:                 loggers.NewErrorLogger(),
-		})
-		if ns.Name == name {
-			found = true
-			break
-		}
-	}
+	ioutil.ReadAll(counter)
 
-	require.True(t, found)
-	require.IsType(t, &Namespace{}, ns.Context())
+	assert.Equal(3, counter.Count)
 }

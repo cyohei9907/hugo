@@ -20,6 +20,7 @@ import (
 
 	"github.com/gohugoio/hugo/config"
 	"github.com/gohugoio/hugo/langs"
+	"github.com/pkg/errors"
 
 	"github.com/gohugoio/hugo/hugofs"
 )
@@ -83,7 +84,7 @@ func New(fs *hugofs.Fs, cfg config.Provider) (*Paths, error) {
 	baseURL, err := newBaseURLFromString(baseURLstr)
 
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create baseURL from %q: %s", baseURLstr, err)
+		return nil, errors.Wrapf(err, "Failed to create baseURL from %q:", baseURLstr)
 	}
 
 	contentDir := cfg.GetString("contentDir")

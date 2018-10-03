@@ -14,7 +14,6 @@ import (
 
 	"github.com/gohugoio/hugo/langs"
 	"github.com/sanity-io/litter"
-	jww "github.com/spf13/jwalterweatherman"
 
 	"github.com/gohugoio/hugo/config"
 	"github.com/gohugoio/hugo/deps"
@@ -26,6 +25,7 @@ import (
 
 	"os"
 
+	"github.com/gohugoio/hugo/common/loggers"
 	"github.com/gohugoio/hugo/hugofs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,7 +38,7 @@ type sitesBuilder struct {
 	Fs  *hugofs.Fs
 	T   testing.TB
 
-	logger *jww.Notepad
+	logger *loggers.Logger
 
 	dumper litter.Options
 
@@ -103,7 +103,7 @@ func (s *sitesBuilder) Running() *sitesBuilder {
 	return s
 }
 
-func (s *sitesBuilder) WithLogger(logger *jww.Notepad) *sitesBuilder {
+func (s *sitesBuilder) WithLogger(logger *loggers.Logger) *sitesBuilder {
 	s.logger = logger
 	return s
 }
@@ -639,13 +639,19 @@ func createWithTemplateFromNameValues(additionalTemplates ...string) func(templ 
 }
 
 func buildSingleSite(t testing.TB, depsCfg deps.DepsCfg, buildCfg BuildCfg) *Site {
-	return buildSingleSiteExpected(t, false, depsCfg, buildCfg)
+	return buildSingleSiteExpected(t, false, false, depsCfg, buildCfg)
 }
 
-func buildSingleSiteExpected(t testing.TB, expectBuildError bool, depsCfg deps.DepsCfg, buildCfg BuildCfg) *Site {
+func buildSingleSiteExpected(t testing.TB, expectSiteInitEror, expectBuildError bool, depsCfg deps.DepsCfg, buildCfg BuildCfg) *Site {
 	h, err := NewHugoSites(depsCfg)
 
-	require.NoError(t, err)
+	if expectSiteInitEror {
+		require.Error(t, err)
+		return nil
+	} else {
+		require.NoError(t, err)
+	}
+
 	require.Len(t, h.Sites, 1)
 
 	if expectBuildError {

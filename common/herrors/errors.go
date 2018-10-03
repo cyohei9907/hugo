@@ -11,12 +11,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package errors contains common Hugo errors and error related utilities.
-package errors
+// Package herrors contains common Hugo errors and error related utilities.
+package herrors
 
 import (
 	"errors"
+	"fmt"
+
+	_errors "github.com/pkg/errors"
 )
+
+// As defined in https://godoc.org/github.com/pkg/errors
+type causer interface {
+	Cause() error
+}
+
+type stackTracer interface {
+	StackTrace() _errors.StackTrace
+}
+
+func PrintStackTrace(err error) {
+	if err, ok := err.(stackTracer); ok {
+		for _, f := range err.StackTrace() {
+			fmt.Printf("%+s:%d\n", f, f)
+		}
+	}
+}
 
 // ErrFeatureNotAvailable denotes that a feature is unavailable.
 //

@@ -5,8 +5,7 @@ import (
 	"testing"
 )
 
-// https://github.com/gohugoio/hugo/issues/4526
-func TestSiteBuildFailureInvalidPageMetadata(t *testing.T) {
+func TestSiteBuildErrors(t *testing.T) {
 	t.Parallel()
 
 	validContentFile := `

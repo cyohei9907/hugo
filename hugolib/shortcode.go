@@ -21,6 +21,9 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
+
+	_errors "github.com/pkg/errors"
+
 	"strings"
 	"sync"
 
@@ -441,7 +444,7 @@ func (s *shortcodeHandler) executeShortcodesForDelta(p *PageWithoutContent) erro
 		render := s.contentShortcodesDelta.getShortcodeRenderer(k)
 		renderedShortcode, err := render()
 		if err != nil {
-			return fmt.Errorf("Failed to execute shortcode in page %q: %s", p.Path(), err)
+			return _errors.Wrapf(err, "Failed to execute shortcode in page %q:", p.Path())
 		}
 
 		s.renderedShortcodes[k.(scKey).ShortcodePlaceholder] = renderedShortcode
@@ -524,7 +527,7 @@ Loop:
 					// return that error, more specific
 					continue
 				}
-				return sc, fmt.Errorf("Shortcode '%s' in page '%s' has no .Inner, yet a closing tag was provided", next.val, p.FullFilePath())
+				return sc, p.errorf(nil, "shortcode %q has no .Inner, yet a closing tag was provided", next.val)
 			}
 			if next.typ == tRightDelimScWithMarkup || next.typ == tRightDelimScNoMarkup {
 				// self-closing
@@ -542,13 +545,13 @@ Loop:
 			// if more than one. It is "all inner or no inner".
 			tmpl := getShortcodeTemplateForTemplateKey(scKey{}, sc.name, p.s.Tmpl)
 			if tmpl == nil {
-				return sc, fmt.Errorf("Unable to locate template for shortcode %q in page %q", sc.name, p.Path())
+				return sc, p.errorf(nil, "unable to locate template for shortcode %q", sc.name)
 			}
 
 			var err error
 			isInner, err = isInnerShortcode(tmpl.(tpl.TemplateExecutor))
 			if err != nil {
-				return sc, fmt.Errorf("Failed to handle template for shortcode %q for page %q: %s", sc.name, p.Path(), err)
+				return sc, p.errorf(nil, "failed to handle template for shortcode %q: %s", sc.name, err)
 			}
 
 		case tScParam:

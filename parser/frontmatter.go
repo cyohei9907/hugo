@@ -23,6 +23,8 @@ import (
 	"io"
 	"strings"
 
+	"github.com/gohugoio/hugo/common/herrors"
+
 	"github.com/gohugoio/hugo/helpers"
 
 	"github.com/spf13/cast"
@@ -178,8 +180,11 @@ func HandleTOMLMetaData(datum []byte) (map[string]interface{}, error) {
 	datum = removeTOMLIdentifier(datum)
 
 	_, err := toml.Decode(string(datum), &m)
+	if err != nil {
+		return nil, err
+	}
 
-	return m, err
+	return m, nil
 
 }
 
@@ -206,20 +211,22 @@ func removeTOMLIdentifier(datum []byte) []byte {
 func HandleYAMLMetaData(datum []byte) (map[string]interface{}, error) {
 	m := map[string]interface{}{}
 	err := yaml.Unmarshal(datum, &m)
+	if err != nil {
+		err = herrors.ToFileErrorWithOffset("yaml", err, -1)
+		return nil, err
+	}
 
 	// To support boolean keys, the `yaml` package unmarshals maps to
 	// map[interface{}]interface{}. Here we recurse through the result
 	// and change all maps to map[string]interface{} like we would've
 	// gotten from `json`.
-	if err == nil {
-		for k, v := range m {
-			if vv, changed := stringifyMapKeys(v); changed {
-				m[k] = vv
-			}
+	for k, v := range m {
+		if vv, changed := stringifyMapKeys(v); changed {
+			m[k] = vv
 		}
 	}
 
-	return m, err
+	return m, nil
 }
 
 // HandleYAMLData unmarshals YAML-encoded datum and returns a Go interface
@@ -228,7 +235,7 @@ func HandleYAMLData(datum []byte) (interface{}, error) {
 	var m interface{}
 	err := yaml.Unmarshal(datum, &m)
 	if err != nil {
-		return nil, err
+		return nil, herrors.ToFileError("yaml", err)
 	}
 
 	// To support boolean keys, the `yaml` package unmarshals maps to
@@ -298,7 +305,11 @@ func HandleJSONMetaData(datum []byte) (map[string]interface{}, error) {
 	}
 
 	err := json.Unmarshal(datum, &m)
-	return m, err
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
 }
 
 // HandleJSONData unmarshals JSON-encoded datum and returns a Go interface
@@ -313,7 +324,11 @@ func HandleJSONData(datum []byte) (interface{}, error) {
 
 	var f interface{}
 	err := json.Unmarshal(datum, &f)
-	return f, err
+	if err != nil {
+		return nil, err
+	}
+
+	return f, nil
 }
 
 // HandleOrgMetaData unmarshals org-mode encoded datum and returns a Go

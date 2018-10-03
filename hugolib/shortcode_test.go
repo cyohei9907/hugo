@@ -24,8 +24,6 @@ import (
 
 	"github.com/spf13/viper"
 
-	jww "github.com/spf13/jwalterweatherman"
-
 	"github.com/spf13/afero"
 
 	"github.com/gohugoio/hugo/output"
@@ -384,7 +382,7 @@ func TestExtractShortcodes(t *testing.T) {
 		// issue #934
 		{"inner self-closing", `Some text. {{< inner />}}. Some more text.`, `inner([], false){[]}`,
 			fmt.Sprintf("Some text. %s. Some more text.", testScPlaceholderRegexp), ""},
-		{"close, but not inner", "{{< tag >}}foo{{< /tag >}}", "", false, "Shortcode 'tag' in page 'simple.md' has no .Inner.*"},
+		{"close, but not inner", "{{< tag >}}foo{{< /tag >}}", "", false, `[en] Page "Simple": shortcode "tag" has no .Inner, yet a closing tag was provided`},
 		{"nested inner", `Inner->{{< inner >}}Inner Content->{{% inner2 param1 %}}inner2txt{{% /inner2 %}}Inner close->{{< / inner >}}<-done`,
 			`inner([], false){[Inner Content-> inner2([\"param1\"], true){[inner2txt]} Inner close->]}`,
 			fmt.Sprintf("Inner->%s<-done", testScPlaceholderRegexp), ""},
@@ -777,7 +775,7 @@ NotFound: {{< thisDoesNotExist >}}
 		"thisDoesNotExist",
 	)
 
-	require.Equal(t, uint64(1), s.Log.LogCountForLevel(jww.LevelError))
+	require.Equal(t, uint64(1), s.Log.ErrorCounter.Count())
 
 }
 

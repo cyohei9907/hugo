@@ -1371,11 +1371,10 @@ some content
 
 func TestDraftAndPublishedFrontMatterError(t *testing.T) {
 	t.Parallel()
+	assert := require.New(t)
 	s := newTestSite(t)
 	_, err := s.NewPageFrom(strings.NewReader(pageWithDraftAndPublished), "content/post/broken.md")
-	if err != ErrHasDraftAndPublished {
-		t.Errorf("expected ErrHasDraftAndPublished, was %#v", err)
-	}
+	assert.Contains(err, "parse failed: both draft and published parameters")
 }
 
 var pagesWithPublishedFalse = `---

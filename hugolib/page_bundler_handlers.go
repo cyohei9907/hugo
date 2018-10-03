@@ -15,9 +15,10 @@ package hugolib
 
 import (
 	"errors"
-	"fmt"
 	"path/filepath"
 	"sort"
+
+	_errors "github.com/pkg/errors"
 
 	"strings"
 
@@ -197,7 +198,7 @@ func (c *contentHandlers) parsePage(h contentHandler) contentHandler {
 
 		f, err := fi.Open()
 		if err != nil {
-			return handlerResult{err: fmt.Errorf("(%s) failed to open content file: %s", fi.Filename(), err)}
+			return handlerResult{err: _errors.Wrapf(err, "(%s) failed to open content file:", fi.Filename())}
 		}
 		defer f.Close()
 
@@ -343,7 +344,7 @@ func (c *contentHandlers) copyFile() contentHandler {
 	return func(ctx *handlerContext) handlerResult {
 		f, err := c.s.BaseFs.Content.Fs.Open(ctx.source.Filename())
 		if err != nil {
-			err := fmt.Errorf("failed to open file in copyFile: %s", err)
+			err := _errors.Wrap(err, "failed to open file in copyFile")
 			return handlerResult{err: err}
 		}
 

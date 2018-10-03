@@ -22,6 +22,11 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/gohugoio/hugo/common/hugio"
+
+	"github.com/gohugoio/hugo/common/herrors"
+	"github.com/pkg/errors"
+
 	"github.com/chaseadamsio/goorgeous"
 )
 
@@ -114,7 +119,8 @@ func (p *page) Metadata() (meta map[string]interface{}, err error) {
 
 // ReadFrom reads the content from an io.Reader and constructs a page.
 func ReadFrom(r io.Reader) (p Page, err error) {
-	reader := bufio.NewReader(r)
+	lineCountingReader := hugio.NewLineCountingReader(r)
+	reader := bufio.NewReader(lineCountingReader)
 
 	// chomp BOM and assume UTF-8
 	if err = chompBOM(reader); err != nil && err != io.EOF {
@@ -139,7 +145,8 @@ func ReadFrom(r io.Reader) (p Page, err error) {
 		left, right := determineDelims(firstLine)
 		fm, err := extractFrontMatterDelims(reader, left, right)
 		if err != nil {
-			return nil, err
+			// TODO(bep) errors bash => toml etc.
+			return nil, herrors.NewFileError("bash", lineCountingReader.Count-1, "failed to parse front matter", err)
 		}
 		newp.frontmatter = fm
 	} else if newp.render && goorgeous.IsKeyword(firstLine) {
@@ -304,11 +311,17 @@ func extractFrontMatterDelims(r *bufio.Reader, left, right []byte) (fm []byte, e
 		inQuote     bool
 		escapeState int
 	)
+
+	const (
+		errMsg     = "unable to identify delimiters"
+		errMsgCRLF = "delimiter must be followed by CR+LF or LF"
+	)
+
 	// Frontmatter must start with a delimiter. To check it first,
 	// pre-reads beginning delimiter length - 1 bytes from Reader
 	for i := 0; i < len(left)-1; i++ {
 		if c, err = r.ReadByte(); err != nil {
-			return nil, fmt.Errorf("unable to read frontmatter at filepos %d: %s\n%.100s...", buf.Len(), err, buf.String())
+			return nil, errors.Wrap(err, errMsg)
 		}
 		if err = buf.WriteByte(c); err != nil {
 			return nil, err
@@ -323,7 +336,7 @@ func extractFrontMatterDelims(r *bufio.Reader, left, right []byte) (fm []byte, e
 	// is expected that the delimiter only contains one character.
 	for {
 		if c, err = r.ReadByte(); err != nil {
-			return nil, fmt.Errorf("unable to read frontmatter at filepos %d: %s\n%.100s...", buf.Len(), err, buf.String())
+			return nil, errors.Wrap(err, errMsg)
 		}
 		if err = buf.WriteByte(c); err != nil {
 			return nil, err
@@ -344,7 +357,7 @@ func extractFrontMatterDelims(r *bufio.Reader, left, right []byte) (fm []byte, e
 					if err != nil {
 						// It is ok that the end delimiter ends with EOF
 						if err != io.EOF || level != 1 {
-							return nil, fmt.Errorf("unable to read frontmatter at filepos %d: %s\n%.100s...", buf.Len(), err, buf.String())
+							return nil, errors.Wrap(err, errMsg)
 						}
 					} else {
 						switch c {
@@ -358,13 +371,13 @@ func extractFrontMatterDelims(r *bufio.Reader, left, right []byte) (fm []byte, e
 								return nil, err
 							}
 							if c, err = r.ReadByte(); err != nil {
-								return nil, fmt.Errorf("unable to read frontmatter at filepos %d: %s\n%.100s...", buf.Len(), err, buf.String())
+								return nil, errors.Wrap(err, errMsg)
 							}
 							if c != '\n' {
-								return nil, fmt.Errorf("frontmatter delimiter must be followed by CR+LF or LF but those can't be found at filepos %d", buf.Len())
+								return nil, errors.Wrap(err, errMsgCRLF)
 							}
 						default:
-							return nil, fmt.Errorf("frontmatter delimiter must be followed by CR+LF or LF but those can't be found at filepos %d", buf.Len())
+							return nil, errors.Wrap(err, errMsgCRLF)
 						}
 						if err = buf.WriteByte(c); err != nil {
 							return nil, err
