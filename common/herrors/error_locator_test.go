@@ -41,7 +41,7 @@ LINE 8
 	location := locateErrorInString(nil, lines, lineMatcher)
 	assert.Equal([]string{"LINE 3", "LINE 4", "This is THEONE", "LINE 6", "LINE 7"}, location.Lines)
 
-	assert.Equal(3, location.LineNo)
+	assert.Equal(3, location.LineNumber)
 	assert.Equal(2, location.Pos)
 
 	assert.Equal([]string{"This is THEONE"}, locateErrorInString(nil, `This is THEONE`, lineMatcher).Lines)
@@ -73,7 +73,7 @@ This THEONE
 	assert.Equal(2, location.Pos)
 
 	location = locateErrorInString(nil, "NO MATCH", lineMatcher)
-	assert.Equal(-1, location.LineNo)
+	assert.Equal(-1, location.LineNumber)
 	assert.Equal(-1, location.Pos)
 	assert.Equal(0, len(location.Lines))
 
@@ -92,7 +92,7 @@ I
 J`, lineMatcher)
 
 	assert.Equal([]string{"D", "E", "F", "G", "H"}, location.Lines)
-	assert.Equal(4, location.LineNo)
+	assert.Equal(4, location.LineNumber)
 	assert.Equal(2, location.Pos)
 
 	// Test match EOF
@@ -106,7 +106,7 @@ C
 `, lineMatcher)
 
 	assert.Equal([]string{"B", "C", ""}, location.Lines)
-	assert.Equal(2, location.LineNo)
+	assert.Equal(3, location.LineNumber)
 	assert.Equal(2, location.Pos)
 
 }

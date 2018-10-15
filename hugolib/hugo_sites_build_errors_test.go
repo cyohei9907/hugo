@@ -2,40 +2,195 @@ package hugolib
 
 import (
 	"fmt"
+	"strings"
 	"testing"
+
+	"github.com/gohugoio/hugo/common/herrors"
+	"github.com/stretchr/testify/require"
 )
+
+type testSiteBuildErrorAsserter struct {
+	name   string
+	assert *require.Assertions
+}
+
+func (t testSiteBuildErrorAsserter) getFileError(err error) *herrors.ErrorWithFileContext {
+	t.assert.NotNil(err, t.name)
+	ferr := herrors.UnwrapErrorWithFileContext(err)
+	t.assert.NotNil(ferr, fmt.Sprintf("[%s] got %T: %+v", t.name, err, err))
+	return ferr
+}
+
+func (t testSiteBuildErrorAsserter) assertLineNumber(lineNumber int, err error) {
+	fe := t.getFileError(err)
+	t.assert.Equal(lineNumber, fe.LineNumber, fmt.Sprintf("[%s]  got => %s", t.name, fe))
+}
 
 func TestSiteBuildErrors(t *testing.T) {
 	t.Parallel()
+	assert := require.New(t)
 
-	validContentFile := `
----
-title = "This is good"
----
+	const (
+		yamlcontent = "yamlcontent"
+		shortcode   = "shortcode"
+		base        = "base"
+		single      = "single"
+	)
 
-Some content.
-`
-
-	invalidContentFile := `
----
-title = "PDF EPUB: Anne Bradstreet: Poems "The Prologue Summary And Analysis EBook Full Text  "
----
-
-Some content.
-`
-
-	var contentFiles []string
-	for i := 0; i <= 30; i++ {
-		name := fmt.Sprintf("valid%d.md", i)
-		contentFiles = append(contentFiles, name, validContentFile)
-		if i%5 == 0 {
-			name = fmt.Sprintf("invalid%d.md", i)
-			contentFiles = append(contentFiles, name, invalidContentFile)
-		}
+	tests := []struct {
+		name              string
+		fileType          string
+		fileFixer         func(content string) string
+		assertCreateError func(a testSiteBuildErrorAsserter, err error)
+		assertBuildError  func(a testSiteBuildErrorAsserter, err error)
+	}{
+		{
+			name:     "Invalid YAML in front matter",
+			fileType: yamlcontent,
+			fileFixer: func(content string) string {
+				return strings.Replace(content, "title:", "title=", 1)
+			},
+			assertBuildError: func(a testSiteBuildErrorAsserter, err error) {
+				a.assertLineNumber(1, err)
+			},
+		},
+		{
+			name:     "Invalid YAML delimiter in front matter",
+			fileType: yamlcontent,
+			fileFixer: func(content string) string {
+				// Remove the end delimiter.
+				return strings.Replace(content, "\n---", "", 1)
+			},
+			assertBuildError: func(a testSiteBuildErrorAsserter, err error) {
+				// The line number logic in this case is kind of impossible, so this is just a ball park.
+				a.assertLineNumber(7, err)
+			},
+		},
+		{
+			name:     "Shortcode template parse failed",
+			fileType: shortcode,
+			fileFixer: func(content string) string {
+				return strings.Replace(content, "}}", "}", 1)
+			},
+			assertCreateError: func(a testSiteBuildErrorAsserter, err error) {
+				a.assertLineNumber(2, err)
+			},
+		},
+		{
+			name:     "Shortcode in content file parse failed",
+			fileType: yamlcontent,
+			fileFixer: func(content string) string {
+				return strings.Replace(content, "{{< sc >}}", "{{< nono >}}", 1)
+			},
+			assertBuildError: func(a testSiteBuildErrorAsserter, err error) {
+				a.assertLineNumber(7, err)
+			},
+		},
+		{
+			name:     "Base template parse failed",
+			fileType: base,
+			fileFixer: func(content string) string {
+				return strings.Replace(content, "content.{{end}}", "content.", 1)
+			},
+			assertCreateError: func(a testSiteBuildErrorAsserter, err error) {
+				a.assertLineNumber(4, err)
+			},
+		},
+		{
+			name:     "Base template execute failed",
+			fileType: base,
+			fileFixer: func(content string) string {
+				return strings.Replace(content, ".Title", ".Titles", 1)
+			},
+			assertBuildError: func(a testSiteBuildErrorAsserter, err error) {
+				a.assertLineNumber(2, err)
+			},
+		},
+		{
+			name:     "Single template parse failed",
+			fileType: single,
+			fileFixer: func(content string) string {
+				return strings.Replace(content, ".Title }}", ".Title }", 1)
+			},
+			assertCreateError: func(a testSiteBuildErrorAsserter, err error) {
+				a.assertLineNumber(4, err)
+			},
+		},
+		{
+			name:     "Single template execute failed",
+			fileType: single,
+			fileFixer: func(content string) string {
+				return strings.Replace(content, ".Title", ".Titles", 1)
+			},
+			assertBuildError: func(a testSiteBuildErrorAsserter, err error) {
+				a.assertLineNumber(4, err)
+			},
+		},
 	}
 
-	b := newTestSitesBuilder(t)
-	b.WithSimpleConfigFile().WithContent(contentFiles...)
-	b.CreateSites().BuildFail(BuildCfg{})
+	for _, test := range tests {
 
+		errorAsserter := testSiteBuildErrorAsserter{
+			assert: assert,
+			name:   test.name,
+		}
+
+		b := newTestSitesBuilder(t).WithSimpleConfigFile()
+
+		f := func(fileType, content string) string {
+			if fileType != test.fileType {
+				return content
+			}
+			return test.fileFixer(content)
+
+		}
+
+		b.WithTemplatesAdded("layouts/shortcodes/sc.html", f(shortcode, `SHORTCODE L1
+SHORTCODE L2
+SHORTCODE L3:
+SHORTCODE L4: {{ .Page.Title }}
+`))
+		b.WithTemplatesAdded("layouts/_default/baseof.html", f(base, `BASEOF L1
+BASEOF L2{{ if .Title }}{{ end }}
+{{block "main" .}}This is the main content.{{end}}
+BASEOF L4
+`))
+
+		b.WithTemplatesAdded("layouts/_default/single.html", f(single, `{{ define "main" }}
+SINGLE L2
+SINGLE L3
+SINGLE L4: {{ .Title }} {{ .Content }}
+{{ end }}
+`))
+
+		b.WithContent("myyaml.md", f(yamlcontent, `---
+title: "The YAML"
+---
+
+Some content.
+
+{{< sc >}}
+
+Some more text.
+
+The end.
+
+`))
+
+		createErr := b.CreateSitesE()
+		if test.assertCreateError != nil {
+			test.assertCreateError(errorAsserter, createErr)
+		} else {
+			assert.NoError(createErr)
+		}
+
+		if createErr == nil {
+			buildErr := b.BuildE(BuildCfg{})
+			if test.assertBuildError != nil {
+				test.assertBuildError(errorAsserter, buildErr)
+			} else {
+				assert.NoError(buildErr)
+			}
+		}
+	}
 }

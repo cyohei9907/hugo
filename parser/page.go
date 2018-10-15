@@ -145,8 +145,12 @@ func ReadFrom(r io.Reader) (p Page, err error) {
 		left, right := determineDelims(firstLine)
 		fm, err := extractFrontMatterDelims(reader, left, right)
 		if err != nil {
-			// TODO(bep) errors bash => toml etc.
-			return nil, herrors.NewFileError("bash", lineCountingReader.Count-1, "failed to parse front matter", err)
+			lineNumber := lineCountingReader.Count
+			// This is no exact science ...
+			if lineNumber >= 2 {
+				lineNumber -= 2
+			}
+			return nil, herrors.NewFileError("markdown", lineNumber, "failed to parse front matter", err)
 		}
 		newp.frontmatter = fm
 	} else if newp.render && goorgeous.IsKeyword(firstLine) {
@@ -159,7 +163,7 @@ func ReadFrom(r io.Reader) (p Page, err error) {
 
 	content, err := extractContent(reader)
 	if err != nil {
-		return nil, err
+		return nil, herrors.NewFileError("markdown", lineCountingReader.Count, "failed extract content", err)
 	}
 
 	newp.content = content

@@ -312,6 +312,14 @@ func (s *sitesBuilder) writeFilePairs(folder string, filenameContent []string) *
 }
 
 func (s *sitesBuilder) CreateSites() *sitesBuilder {
+	if err := s.CreateSitesE(); err != nil {
+		s.Fatalf("Failed to create sites: %s", err)
+	}
+
+	return s
+}
+
+func (s *sitesBuilder) CreateSitesE() error {
 	s.addDefaults()
 	s.writeFilePairs("content", s.contentFilePairs)
 	s.writeFilePairs("content", s.contentFilePairsAdded)
@@ -325,7 +333,7 @@ func (s *sitesBuilder) CreateSites() *sitesBuilder {
 	if s.Cfg == nil {
 		cfg, _, err := LoadConfig(ConfigSourceDescriptor{Fs: s.Fs.Source, Filename: "config." + s.configFormat})
 		if err != nil {
-			s.Fatalf("Failed to load config: %s", err)
+			return err
 		}
 		// TODO(bep)
 		/*		expectedConfigs := 1
@@ -339,11 +347,19 @@ func (s *sitesBuilder) CreateSites() *sitesBuilder {
 
 	sites, err := NewHugoSites(deps.DepsCfg{Fs: s.Fs, Cfg: s.Cfg, Logger: s.logger, Running: s.running})
 	if err != nil {
-		s.Fatalf("Failed to create sites: %s", err)
+		return err
 	}
 	s.H = sites
 
-	return s
+	return nil
+}
+
+func (s *sitesBuilder) BuildE(cfg BuildCfg) error {
+	if s.H == nil {
+		s.CreateSites()
+	}
+
+	return s.H.Build(cfg)
 }
 
 func (s *sitesBuilder) Build(cfg BuildCfg) *sitesBuilder {
@@ -360,6 +376,7 @@ func (s *sitesBuilder) build(cfg BuildCfg, shouldFail bool) *sitesBuilder {
 	}
 
 	err := s.H.Build(cfg)
+
 	if err == nil {
 		logErrorCount := s.H.NumLogErrors()
 		if logErrorCount > 0 {

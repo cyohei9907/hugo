@@ -1000,6 +1000,23 @@ func (p *Page) errorf(err error, format string, a ...interface{}) error {
 	return _errors.Wrapf(err, format, args...)
 }
 
+func (p *Page) rawFrontMatterAndContent() []byte {
+	return append(p.frontmatter, p.rawContent...)
+}
+func (p *Page) errWithFileContext(what string, err error) error {
+	err = _errors.Wrapf(err, "%q: %s:", p.pathOrTitle(), what)
+
+	fmt.Println(">>>", err)
+
+	err, _ = herrors.WithFileContext(
+		err,
+		bytes.NewReader(p.rawFrontMatterAndContent()),
+		"markdown",
+		herrors.SimpleLineMatcher)
+
+	return err
+}
+
 func (p *Page) ReadFrom(buf io.Reader) (int64, error) {
 	// Parse for metadata & body
 	if err := p.parse(buf); err != nil {
@@ -1007,7 +1024,7 @@ func (p *Page) ReadFrom(buf io.Reader) (int64, error) {
 		// TODO(bep) errors
 		if rs, ok := buf.(io.ReadSeeker); ok {
 			rs.Seek(0, 0)
-			err = herrors.WithFileContext(err, rs, "", herrors.SimpleLineMatcher)
+			err, _ = herrors.WithFileContext(err, rs, "", herrors.SimpleLineMatcher)
 		}
 		return 0, err
 	}

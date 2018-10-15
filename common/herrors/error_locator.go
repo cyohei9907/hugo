@@ -44,7 +44,7 @@ type ErrorContext struct {
 	Pos int
 
 	// The linenumber in the source file from where the Lines start. Starting at 1.
-	LineNo int
+	LineNumber int
 
 	// The lexer to use for syntax highlighting.
 	// https://gohugo.io/content-management/syntax-highlighting/#list-of-chroma-highlighting-languages
@@ -62,16 +62,16 @@ func (e *ErrorWithFileContext) Error() string {
 	return e.Err.Error()
 }
 
-func WithFileContextForFile(e error, filename string, fs afero.Fs, chromaLexer string, matcher LineMatcher) error {
+func WithFileContextForFile(e error, filename string, fs afero.Fs, chromaLexer string, matcher LineMatcher) (error, bool) {
 	f, err := fs.Open(filename)
 	if err != nil {
-		return e
+		return e, false
 	}
 	defer f.Close()
 	return WithFileContext(e, f, chromaLexer, matcher)
 }
 
-func WithFileContext(e error, r io.Reader, chromaLexer string, matcher LineMatcher) error {
+func WithFileContext(e error, r io.Reader, chromaLexer string, matcher LineMatcher) (error, bool) {
 	if e == nil {
 		panic("error missing")
 	}
@@ -79,14 +79,14 @@ func WithFileContext(e error, r io.Reader, chromaLexer string, matcher LineMatch
 	if le == nil {
 		var ok bool
 		if le, ok = ToFileError("bash", e).(FileError); !ok {
-			return e
+			return e, false
 		}
 	}
 
 	errCtx := locateError(r, le, matcher)
-	if errCtx.LineNo == -1 {
-		// For some reason we were not able to match the line.
-		return nil
+
+	if errCtx.LineNumber == -1 {
+		return e, false
 	}
 
 	if chromaLexer != "" {
@@ -95,7 +95,7 @@ func WithFileContext(e error, r io.Reader, chromaLexer string, matcher LineMatch
 		errCtx.ChromaLexer = chromaLexerFromType(le.Type())
 	}
 
-	return &ErrorWithFileContext{Err: e, ErrorContext: errCtx}
+	return &ErrorWithFileContext{Err: e, ErrorContext: errCtx}, true
 }
 
 // UnwrapErrorWithFileContext tries to unwrap an ErrorWithFileContext from err.
@@ -143,7 +143,7 @@ func locateError(r io.Reader, le FileError, matches LineMatcher) ErrorContext {
 
 		if errCtx.Pos == -1 && matches(le, lineNo, txt) {
 			errCtx.Pos = i
-			errCtx.LineNo = lineNo - i
+			errCtx.LineNumber = lineNo - i
 		}
 
 		if errCtx.Pos == -1 && i == 2 {
@@ -162,7 +162,7 @@ func locateError(r io.Reader, le FileError, matches LineMatcher) ErrorContext {
 		if matches(le, lineNo, "") {
 			buff[i] = ""
 			errCtx.Pos = i
-			errCtx.LineNo = lineNo - i
+			errCtx.LineNumber = lineNo - 1
 
 			i++
 		}
@@ -175,9 +175,10 @@ func locateError(r io.Reader, le FileError, matches LineMatcher) ErrorContext {
 		}
 		high := i
 		errCtx.Lines = buff[low:high]
+
 	} else {
 		errCtx.Pos = -1
-		errCtx.LineNo = -1
+		errCtx.LineNumber = -1
 	}
 
 	return errCtx

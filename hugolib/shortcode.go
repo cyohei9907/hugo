@@ -482,6 +482,15 @@ func (s *shortcodeHandler) extractShortcode(ordinal int, pt *pageTokens, p *Page
 	var cnt = 0
 	var nestedOrdinal = 0
 
+	msgf := func(i item, format string, args ...interface{}) string {
+		format = format + ":%d:"
+		c1 := strings.Count(pt.lexer.input[:i.pos], "\n") + 1
+		c2 := bytes.Count(p.frontmatter, []byte{'\n'})
+		args = append(args, c1+c2)
+		return fmt.Sprintf(format, args...)
+
+	}
+
 Loop:
 	for {
 		currItem = pt.next()
@@ -527,7 +536,7 @@ Loop:
 					// return that error, more specific
 					continue
 				}
-				return sc, p.errorf(nil, "shortcode %q has no .Inner, yet a closing tag was provided", next.val)
+				return sc, errors.New(msgf(next, "shortcode %q has no .Inner, yet a closing tag was provided", next.val))
 			}
 			if next.typ == tRightDelimScWithMarkup || next.typ == tRightDelimScNoMarkup {
 				// self-closing
@@ -545,13 +554,13 @@ Loop:
 			// if more than one. It is "all inner or no inner".
 			tmpl := getShortcodeTemplateForTemplateKey(scKey{}, sc.name, p.s.Tmpl)
 			if tmpl == nil {
-				return sc, p.errorf(nil, "unable to locate template for shortcode %q", sc.name)
+				return sc, errors.New(msgf(currItem, "unable to locate template for shortcode %q", sc.name))
 			}
 
 			var err error
 			isInner, err = isInnerShortcode(tmpl.(tpl.TemplateExecutor))
 			if err != nil {
-				return sc, p.errorf(nil, "failed to handle template for shortcode %q: %s", sc.name, err)
+				return sc, _errors.Wrap(err, msgf(currItem, "failed to handle template for shortcode %q", sc.name))
 			}
 
 		case tScParam:
@@ -654,8 +663,8 @@ Loop:
 		case tEOF:
 			break Loop
 		case tError:
-			err := fmt.Errorf("%s:%d: %s",
-				p.FullFilePath(), (p.lineNumRawContentStart() + pt.lexer.lineNum() - 1), currItem)
+			err := fmt.Errorf("%s:shortcode:%d: %s",
+				p.pathOrTitle(), (p.lineNumRawContentStart() + pt.lexer.lineNum() - 1), currItem)
 			currShortcode.err = err
 			return result.String(), err
 		}

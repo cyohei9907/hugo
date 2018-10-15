@@ -33,6 +33,7 @@ func TestToLineNumberError(t *testing.T) {
 		lineNumber int
 	}{
 		{errors.New("no line number for you"), 0, -1},
+		{errors.New(`template: _default/single.html:2:15: executing "_default/single.html" at <.Titles>: can't evaluate field`), 0, 2},
 		{errors.New("parse failed: template: _default/bundle-resource-meta.html:11: unexpected in operand"), 0, 11},
 		{errors.New(`failed:: template: _default/bundle-resource-meta.html:2:7: executing "main" at <.Titles>`), 0, 2},
 		{errors.New("error in front matter: Near line 32 (last key parsed 'title')"), 0, 32},

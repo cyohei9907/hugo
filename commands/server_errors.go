@@ -69,7 +69,7 @@ var defaultBuildErrorTemplate = `<!doctype html>
 		<main>
 			{{ highlight .Error "apl" "noclasses=true,style=monokai" }}
 			{{ with .File }}
-			{{ $params := printf "noclasses=true,style=monokai,linenos=table,hl_lines=%d,linenostart=%d" (add .Pos 1) .LineNo }}
+			{{ $params := printf "noclasses=true,style=monokai,linenos=table,hl_lines=%d,linenostart=%d" (add .Pos 1) .LineNumber }}
 			{{ $lexer := .ChromaLexer | default "go-html-template" }}
 			{{  highlight (delimit .Lines "\n") $lexer $params }}
 			{{ end }}

@@ -62,7 +62,6 @@ func (s *Site) renderPages(cfg *BuildCfg) error {
 
 	err := <-errs
 	if err != nil {
-		fmt.Printf("ORIG %T: %T\n", err, err)
 		return errors.Wrap(err, "failed to render pages")
 	}
 	return nil

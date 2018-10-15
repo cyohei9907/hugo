@@ -87,6 +87,7 @@ func (c *contentHandlers) processFirstMatch(handlers ...contentHandler) func(ctx
 				return res
 			}
 		}
+
 		return handlerResult{err: errors.New("no matching handler found")}
 	}
 }
@@ -277,7 +278,7 @@ func (c *contentHandlers) handlePageContent() contentHandler {
 		p.createWorkContentCopy()
 
 		if err := p.processShortcodes(); err != nil {
-			p.s.Log.ERROR.Println(err)
+			return handlerResult{err: p.errWithFileContext("shortcodes processing failed", err)}
 		}
 
 		if c.s.Cfg.GetBool("enableEmoji") {
@@ -310,7 +311,7 @@ func (c *contentHandlers) handleHTMLContent() contentHandler {
 		p.createWorkContentCopy()
 
 		if err := p.processShortcodes(); err != nil {
-			p.s.Log.ERROR.Println(err)
+			return handlerResult{err: p.errWithFileContext("shortcodes processing failed", err)}
 		}
 
 		if !ctx.doNotAddToSiteCollections {

@@ -43,6 +43,9 @@ import (
 	jww "github.com/spf13/jwalterweatherman"
 )
 
+// TODO(bep) errors
+// two new flags: disableBrowserError + printStack
+
 type serverCmd struct {
 	// Can be used to stop the server. Useful in tests
 	stop <-chan bool

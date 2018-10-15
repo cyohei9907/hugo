@@ -15,8 +15,6 @@ package herrors
 
 import (
 	"fmt"
-	"regexp"
-	"strconv"
 )
 
 var _ causer = (*fileError)(nil)
@@ -111,43 +109,4 @@ func ToFileErrorWithOffset(fileType string, err error, offset int) error {
 	}
 	// Fall back to the original.
 	return err
-}
-
-var lineNumberExtractors = []lineNumberExtractor{
-	// Template parse errors
-	newLineNumberErrHandlerFromRegexp("(.*template: .*?:)(\\d+)(:.*)"),
-
-	// TOML parse errors
-	newLineNumberErrHandlerFromRegexp("(.*Near line )(\\d+)(\\s.*)"),
-
-	// YAML parse errors
-	newLineNumberErrHandlerFromRegexp("(yaml: line )(\\d+)(:)"),
-}
-
-type lineNumberExtractor func(e error, offset int) (int, string)
-
-func newLineNumberErrHandlerFromRegexp(expression string) lineNumberExtractor {
-	re := regexp.MustCompile(expression)
-	return extractLineNo(re)
-}
-
-func extractLineNo(re *regexp.Regexp) lineNumberExtractor {
-	return func(e error, offset int) (int, string) {
-		if e == nil {
-			panic("no error")
-		}
-		s := e.Error()
-		m := re.FindStringSubmatch(s)
-		if len(m) == 4 {
-			i, _ := strconv.Atoi(m[2])
-			msg := e.Error()
-			if offset != 0 {
-				i = i + offset
-				msg = re.ReplaceAllString(s, fmt.Sprintf("${1}%d${3}", i))
-			}
-			return i, msg
-		}
-
-		return -1, ""
-	}
 }

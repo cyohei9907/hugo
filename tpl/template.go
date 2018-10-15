@@ -152,7 +152,10 @@ func (t *TemplateAdapter) addFileContext(name string, inerr error) error {
 
 	master, hasMaster := t.NameBaseTemplateName[name]
 
-	ferr := errors.Wrapf(inerr, "Execute of template %q failed:", realFilename)
+	ferr := errors.Wrapf(inerr, "execute of template %q failed", realFilename)
+
+	// Since this can be a composite of multiple template files (single.html + baseof.html etc.)
+	// we potentially need to look in both -- and cannot rely on line number alone.
 	lineMatcher := func(le herrors.FileError, lineNumber int, line string) bool {
 		if le.LineNumber() != lineNumber {
 			return false
@@ -161,7 +164,7 @@ func (t *TemplateAdapter) addFileContext(name string, inerr error) error {
 			return true
 		}
 
-		identifiers := t.extractIdentifiers(line)
+		identifiers := t.extractIdentifiers(le.Error())
 
 		for _, id := range identifiers {
 			if strings.Contains(line, id) {
@@ -172,29 +175,21 @@ func (t *TemplateAdapter) addFileContext(name string, inerr error) error {
 	}
 
 	// TODO(bep) errors text vs HTML
-	fe := herrors.WithFileContext(ferr, f, "go-html-template", lineMatcher)
-	if fe != nil {
+	fe, ok := herrors.WithFileContext(ferr, f, "go-html-template", lineMatcher)
+	if ok || !hasMaster {
 		return fe
 	}
 
-	if hasMaster {
-		// TODO(bep) errors consider nil / do less in WithFileContext
-		// Try the base template if relevant
-
-		f, realFilename, err := t.fileAndFilename(master)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-
-		ferr = errors.Wrapf(inerr, "Execute of template %q failed:", realFilename)
-		fe = herrors.WithFileContext(ferr, f, "go-html-template", lineMatcher)
-		if fe != nil {
-			return fe
-		}
+	// Try the base template if relevant
+	f, realFilename, err = t.fileAndFilename(master)
+	if err != nil {
+		return err
 	}
+	defer f.Close()
 
-	return inerr
+	ferr = errors.Wrapf(inerr, "execute of template %q failed", realFilename)
+	fe, _ = herrors.WithFileContext(ferr, f, "go-html-template", lineMatcher)
+	return fe
 
 }
 

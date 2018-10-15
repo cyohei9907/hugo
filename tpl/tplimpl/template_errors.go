@@ -35,10 +35,12 @@ type templateInfo struct {
 func (info templateInfo) errWithFileContext(what string, err error) error {
 	err = errors.Wrapf(err, "file %q: %s:", info.realFilename, what)
 
-	return herrors.WithFileContextForFile(
+	err, _ = herrors.WithFileContextForFile(
 		err,
 		info.filename,
 		info.fs,
 		"go-html-template",
 		herrors.SimpleLineMatcher)
+
+	return err
 }

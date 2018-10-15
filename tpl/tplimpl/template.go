@@ -587,7 +587,7 @@ func (t *htmlTemplates) handleMaster(name, overlayFilename, masterFilename strin
 
 		masterTpl, err = t.t.New(overlayFilename).Parse(templ.template)
 		if err != nil {
-			return templ.errWithFileContext("parse failed", err)
+			return templ.errWithFileContext("parse master failed", err)
 		}
 	}
 

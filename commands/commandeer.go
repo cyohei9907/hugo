@@ -15,7 +15,6 @@ package commands
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/gohugoio/hugo/common/herrors"
 
@@ -106,7 +105,6 @@ func (c *commandeer) getErrorWithContext() interface{} {
 
 	fe := herrors.UnwrapErrorWithFileContext(c.buildErr)
 	if fe != nil {
-		fmt.Println(">>> GOT FEH", fe)
 		m["File"] = fe
 	}
 
