@@ -1602,17 +1602,23 @@ func TestChompBOM(t *testing.T) {
 	t.Parallel()
 	const utf8BOM = "\xef\xbb\xbf"
 
-	cfg, fs := newTestCfg()
-
-	writeSource(t, fs, filepath.Join("content", "simple.md"), utf8BOM+simplePage)
-
-	s := buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg}, BuildCfg{SkipRender: true})
-
-	require.Len(t, s.RegularPages, 1)
-
-	p := s.RegularPages[0]
-
+	p := buildSinglePageSite(t, utf8BOM+simplePage)
 	checkPageTitle(t, p, "Simple")
+}
+
+func TestPageContentFields(t *testing.T) {
+	t.Parallel()
+	assert := require.New(t)
+	p := buildSinglePageSite(t, simplePage)
+
+	frontmatter := string(p.frontMatterBytes())
+	rawContent := string(p.rawContentWithoutFrontMatter())
+	content, _ := p.Content()
+
+	assert.Equal("---\ntitle: Simple\n---\n", frontmatter)
+	assert.Equal("Simple Page\n", rawContent)
+	assert.Equal(template.HTML("<p>Simple Page</p>\n"), content)
+
 }
 
 // TODO(bep) this may be useful for other tests.

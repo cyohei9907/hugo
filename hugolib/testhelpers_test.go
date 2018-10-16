@@ -655,6 +655,20 @@ func createWithTemplateFromNameValues(additionalTemplates ...string) func(templ 
 	}
 }
 
+func buildSinglePageSite(t testing.TB, content string) *Page {
+	cfg, fs := newTestCfg()
+
+	writeSource(t, fs, filepath.Join("content", "simple.md"), content)
+	writeSource(t, fs, filepath.Join("layouts", "_default", "single.html"), "SINGLE CONTENT: {{ .Content }}")
+
+	s := buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg}, BuildCfg{SkipRender: false})
+
+	require.Len(t, s.RegularPages, 1)
+
+	return s.RegularPages[0]
+
+}
+
 func buildSingleSite(t testing.TB, depsCfg deps.DepsCfg, buildCfg BuildCfg) *Site {
 	return buildSingleSiteExpected(t, false, false, depsCfg, buildCfg)
 }

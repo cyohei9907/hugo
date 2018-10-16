@@ -485,7 +485,7 @@ func (s *shortcodeHandler) extractShortcode(ordinal int, pt *pageTokens, p *Page
 	msgf := func(i item, format string, args ...interface{}) string {
 		format = format + ":%d:"
 		c1 := strings.Count(pt.lexer.input[:i.pos], "\n") + 1
-		c2 := bytes.Count(p.frontmatter, []byte{'\n'})
+		c2 := bytes.Count(p.frontMatterBytes(), []byte{'\n'})
 		args = append(args, c1+c2)
 		return fmt.Sprintf(format, args...)
 
@@ -663,8 +663,9 @@ Loop:
 		case tEOF:
 			break Loop
 		case tError:
+			// TODO(bep) errors
 			err := fmt.Errorf("%s:shortcode:%d: %s",
-				p.pathOrTitle(), (p.lineNumRawContentStart() + pt.lexer.lineNum() - 1), currItem)
+				p.pathOrTitle(), (444 + pt.lexer.lineNum() - 1), currItem)
 			currShortcode.err = err
 			return result.String(), err
 		}

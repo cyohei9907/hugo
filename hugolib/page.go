@@ -45,7 +45,6 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -172,13 +171,8 @@ type Page struct {
 
 	linkTitle string
 
-	frontmatter []byte
-
-	// rawContent is the raw content read from the content file.
-	rawContent []byte
-
-	// workContent is a copy of rawContent that may be mutated during site build.
-	workContent []byte
+	// The raw page content.
+	pageContent
 
 	// whether the content is in a CJK language.
 	isCJKLanguage bool
@@ -280,12 +274,6 @@ type Page struct {
 	mainPageOutput *PageOutput
 
 	targetPathDescriptorPrototype *targetPathDescriptor
-}
-
-func stackTrace(length int) string {
-	trace := make([]byte, length)
-	runtime.Stack(trace, true)
-	return string(trace)
 }
 
 func (p *Page) Data() interface{} {
@@ -577,8 +565,9 @@ func (ps Pages) findPagePos(page *Page) int {
 }
 
 func (p *Page) createWorkContentCopy() {
-	p.workContent = make([]byte, len(p.rawContent))
-	copy(p.workContent, p.rawContent)
+	raw := p.rawContentWithoutFrontMatter()
+	p.workContent = make([]byte, len(raw))
+	copy(p.workContent, raw)
 }
 
 func (p *Page) Plain() string {
@@ -711,11 +700,6 @@ func (p *Page) Authors() AuthorList {
 
 func (p *Page) UniqueID() string {
 	return p.Source.UniqueID()
-}
-
-// for logging
-func (p *Page) lineNumRawContentStart() int {
-	return bytes.Count(p.frontmatter, []byte("\n")) + 1
 }
 
 var (
@@ -1000,17 +984,13 @@ func (p *Page) errorf(err error, format string, a ...interface{}) error {
 	return _errors.Wrapf(err, format, args...)
 }
 
-func (p *Page) rawFrontMatterAndContent() []byte {
-	return append(p.frontmatter, p.rawContent...)
-}
 func (p *Page) errWithFileContext(what string, err error) error {
 	err = _errors.Wrapf(err, "%q: %s:", p.pathOrTitle(), what)
 
-	fmt.Println(">>>", err)
-
 	err, _ = herrors.WithFileContext(
 		err,
-		bytes.NewReader(p.rawFrontMatterAndContent()),
+		// TODO(bep) errors
+		bytes.NewReader(p.rawContentWithoutFrontMatter()),
 		"markdown",
 		herrors.SimpleLineMatcher)
 
@@ -1029,7 +1009,8 @@ func (p *Page) ReadFrom(buf io.Reader) (int64, error) {
 		return 0, err
 	}
 
-	return int64(len(p.rawContent)), nil
+	// TODO(bep) errors len is wrong
+	return int64(len(p.rawContentWithoutFrontMatter())), nil
 }
 
 func (p *Page) WordCount() int {
@@ -1554,7 +1535,7 @@ func (p *Page) update(frontmatter map[string]interface{}) error {
 	if isCJKLanguage != nil {
 		p.isCJKLanguage = *isCJKLanguage
 	} else if p.s.Cfg.GetBool("hasCJKLanguage") {
-		if cjk.Match(p.rawContent) {
+		if cjk.Match(p.rawContentWithoutFrontMatter()) {
 			p.isCJKLanguage = true
 		} else {
 			p.isCJKLanguage = false
@@ -1787,7 +1768,7 @@ func (p *Page) parse(reader io.Reader) error {
 	}
 
 	p.renderable = psr.IsRenderable()
-	p.frontmatter = psr.FrontMatter()
+	p.rawFrontMatter = psr.FrontMatter()
 	p.rawContent = psr.Content()
 	p.lang = p.Source.File.Lang()
 
@@ -1813,7 +1794,7 @@ func (p *Page) parse(reader io.Reader) error {
 }
 
 func (p *Page) RawContent() string {
-	return string(p.rawContent)
+	return string(p.rawContentWithoutFrontMatter())
 }
 
 func (p *Page) SetSourceContent(content []byte) {
