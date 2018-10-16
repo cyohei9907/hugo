@@ -1,4 +1,4 @@
-// Copyright 2016n The Hugo Authors. All rights reserved.
+// Copyright 2018 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -72,6 +72,11 @@ type Page interface {
 	// FrontMatter contains the raw frontmatter with relevant delimiters.
 	FrontMatter() []byte
 
+	// FrontMatterHigh returns the upper byte slice boundary of any front matter
+	// in the Content() slice.
+	// A value of <= 0 means no front matter.
+	FrontMatterHigh() int
+
 	// Content contains the raw page content.
 	Content() []byte
 
@@ -99,6 +104,10 @@ func (p *page) FrontMatter() []byte {
 	return p.frontmatter
 }
 
+func (p *page) FrontMatterHigh() int {
+	return -1
+}
+
 // IsRenderable denotes that the page should be rendered.
 func (p *page) IsRenderable() bool {
 	return p.render
@@ -119,7 +128,14 @@ func (p *page) Metadata() (meta map[string]interface{}, err error) {
 
 // ReadFrom reads the content from an io.Reader and constructs a page.
 func ReadFrom(r io.Reader) (p Page, err error) {
-	lineCountingReader := hugio.NewLineCountingReader(r)
+
+	// We will return the full and unmodified content in Content().
+	contentr, ok := r.(io.ReadSeeker)
+	if !ok {
+		return nil, errors.New("must provide an io.ReadSeeker")
+	}
+
+	lineCountingReader := hugio.NewLineCountingReader(contentr)
 	reader := bufio.NewReader(lineCountingReader)
 
 	// chomp BOM and assume UTF-8

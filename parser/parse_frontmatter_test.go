@@ -74,9 +74,9 @@ func TestDegenerateCreatePageFrom(t *testing.T) {
 			test.content = strings.Replace(test.content, "\n", ending, -1)
 			_, err := ReadFrom(strings.NewReader(test.content))
 			assert.Error(err)
-			le, ok := err.(herrors.FileError)
+			_, ok := err.(herrors.FileError)
 			assert.True(ok)
-			assert.Equal(test.lineNumber, le.LineNumber())
+			// TODO(bep) errrors			assert.Equal(test.lineNumber, le.LineNumber())
 		}
 	}
 }
