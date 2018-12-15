@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gohugoio/hugo/common/hugio"
@@ -336,7 +337,7 @@ func NewCaches(p *helpers.PathSpec) (Caches, error) {
 		} else {
 			baseDir = filepath.Join(v.Dir, k)
 		}
-		if err = cfs.MkdirAll(baseDir, 0777); err != nil && !os.IsExist(err) {
+		if err = cfs.MkdirAll(baseDir, 0777); err != nil && !isExist(err) {
 			return nil, err
 		}
 
@@ -346,6 +347,10 @@ func NewCaches(p *helpers.PathSpec) (Caches, error) {
 	}
 
 	return m, nil
+}
+
+func isExist(err error) bool {
+	return os.IsExist(err) || err == syscall.EEXIST
 }
 
 func cleanID(name string) string {
