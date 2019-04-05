@@ -14,7 +14,7 @@
 package commands
 
 import (
-	"syscall"
+	"golang.org/x/sys/unix"
 
 	"github.com/spf13/cobra"
 	jww "github.com/spf13/jwalterweatherman"
@@ -33,8 +33,8 @@ func newLimitCmd() *limitCmd {
 		Long: `Hugo will inspect the current ulimit settings on the system.
 This is primarily to ensure that Hugo can watch enough files on some OSs`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var rLimit syscall.Rlimit
-			err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+			var rLimit unix.Rlimit
+			err := unix.Getrlimit(unix.RLIMIT_NOFILE, &rLimit)
 			if err != nil {
 				return newSystemError("Error Getting Rlimit ", err)
 			}
@@ -44,11 +44,11 @@ This is primarily to ensure that Hugo can watch enough files on some OSs`,
 			jww.FEEDBACK.Println("Attempting to increase limit")
 			rLimit.Max = 999999
 			rLimit.Cur = 999999
-			err = syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+			err = unix.Setrlimit(unix.RLIMIT_NOFILE, &rLimit)
 			if err != nil {
 				return newSystemError("Error Setting rLimit ", err)
 			}
-			err = syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+			err = unix.Getrlimit(unix.RLIMIT_NOFILE, &rLimit)
 			if err != nil {
 				return newSystemError("Error Getting rLimit ", err)
 			}
@@ -62,15 +62,15 @@ This is primarily to ensure that Hugo can watch enough files on some OSs`,
 }
 
 func tweakLimit() {
-	var rLimit syscall.Rlimit
-	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+	var rLimit unix.Rlimit
+	err := unix.Getrlimit(unix.RLIMIT_NOFILE, &rLimit)
 	if err != nil {
 		jww.ERROR.Println("Unable to obtain rLimit", err)
 	}
-	if rLimit.Cur < rLimit.Max {
+	if true || rLimit.Cur < rLimit.Max {
 		rLimit.Max = 64000
 		rLimit.Cur = 64000
-		err = syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+		err = unix.Setrlimit(unix.RLIMIT_NOFILE, &rLimit)
 		if err != nil {
 			jww.WARN.Println("Unable to increase number of open files limit", err)
 		}
