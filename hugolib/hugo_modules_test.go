@@ -15,6 +15,7 @@ package hugolib
 
 import (
 	"fmt"
+	"path"
 	"testing"
 
 	"github.com/gohugoio/hugo/hugofs"
@@ -26,25 +27,29 @@ import (
 func TestHugoModules(t *testing.T) {
 	t.Parallel()
 
-	testmods := mods.CreateModules().Collect()
+	// We both produce and consume these for all of these,
+	// a test matrix Keanu Reeves would appreciate.
+	for _, goos := range []string{"linux", "darwin", "windows"} {
+		mods.SetGOOS(goos)
+		testmods := mods.CreateModules().Collect()
 
-	for _, m := range testmods {
-		if len(m.Paths()) == 0 {
-			continue
-		}
+		for _, m := range testmods {
+			if len(m.Paths()) == 0 {
+				continue
+			}
 
-		t.Run(m.Name(), func(t *testing.T) {
-			assert := require.New(t)
+			t.Run(path.Join(goos, m.Name()), func(t *testing.T) {
+				assert := require.New(t)
 
-			v := viper.New()
+				v := viper.New()
 
-			workingDir, clean, err := createTempDir("hugo-modules-test")
-			assert.NoError(err)
-			defer clean()
+				workingDir, clean, err := createTempDir("hugo-modules-test")
+				assert.NoError(err)
+				defer clean()
 
-			v.Set("workingDir", workingDir)
+				v.Set("workingDir", workingDir)
 
-			configTemplate := `
+				configTemplate := `
 baseURL = "https://example.com"
 title = "My Modular Site"
 workingDir = %q
@@ -52,20 +57,20 @@ theme = %q
 
 `
 
-			config := fmt.Sprintf(configTemplate, workingDir, m.Path())
+				config := fmt.Sprintf(configTemplate, workingDir, m.Path())
 
-			b := newTestSitesBuilder(t)
+				b := newTestSitesBuilder(t)
 
-			// Need to use OS fs for this.
-			b.Fs = hugofs.NewDefault(v)
+				// Need to use OS fs for this.
+				b.Fs = hugofs.NewDefault(v)
 
-			b.WithWorkingDir(workingDir).WithConfigFile("toml", config)
-			b.WithContent("page.md", `
+				b.WithWorkingDir(workingDir).WithConfigFile("toml", config)
+				b.WithContent("page.md", `
 ---
 title: "Foo"
 ---
 `)
-			b.WithTemplates("home.html", `
+				b.WithTemplates("home.html", `
 
 {{ $mod := .Site.Data.modinfo.module }}
 Mod Name: {{ $mod.name }}
@@ -77,24 +82,25 @@ Mod Version: {{ $mod.version }}
 
 
 `)
-			b.WithSourceFile("go.mod", `
+				b.WithSourceFile("go.mod", `
 module github.com/gohugoio/tests/testHugoModules
 
 
 `)
 
-			b.Build(BuildCfg{})
+				b.Build(BuildCfg{})
 
-			// Verify that go.mod is autopopulated with all the modules in config.toml.
-			b.AssertFileContent("go.mod", m.Path())
+				// Verify that go.mod is autopopulated with all the modules in config.toml.
+				b.AssertFileContent("go.mod", m.Path())
 
-			b.AssertFileContent("public/index.html",
-				"Mod Name: "+m.Name(),
-				"Mod Version: v1.4.0")
+				b.AssertFileContent("public/index.html",
+					"Mod Name: "+m.Name(),
+					"Mod Version: v1.4.0")
 
-			b.AssertFileContent("public/index.html", createModMatchers(m, m.Vendor)...)
+				b.AssertFileContent("public/index.html", createModMatchers(m, m.Vendor)...)
 
-		})
+			})
+		}
 	}
 
 }

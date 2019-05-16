@@ -139,7 +139,7 @@ func (m *Handler) List() (Modules, error) {
 
 	// TODO(bep) mod --no-vendor flag (also on hugo)
 	// TODO(bep) mod hugo mod vendor: --no-local
-
+	// GOCACHE
 	// Vendor rules:
 
 	/*
