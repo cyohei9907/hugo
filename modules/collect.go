@@ -192,7 +192,7 @@ func (c *collector) add(dir, name string) (ThemeConfig, error) {
 			if moduleDir == "" {
 				moduleDir = filepath.Join(c.themesDir, name)
 				if found, _ := afero.Exists(c.fs, moduleDir); !found {
-					return ThemeConfig{}, errors.Errorf("module %q not found", name)
+					return ThemeConfig{}, errors.Errorf("module %q not found; either add it as a Hugo Module or store it in %q.", name, c.themesDir)
 				}
 			}
 		}

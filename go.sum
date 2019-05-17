@@ -207,6 +207,11 @@ github.com/gohugoio/hugoTestHelpers/testmodBuilder/mods v0.0.0-20190516210535-c9
 github.com/gohugoio/hugoTestHelpers/testmodBuilder/mods v0.0.0-20190516210535-c9cf37ca53a4/go.mod h1:02pCCFh9qZreZ7KAHvfuvl/Udly83h/qK6PkFdvOFnY=
 github.com/gohugoio/hugoTestHelpers/testmodBuilder/mods v0.0.0-20190516214322-aa53ba81c9fb h1:X85T5RUwkR6pEGxMrCRw8kSFwDoRb4nhZ5381Twaa9I=
 github.com/gohugoio/hugoTestHelpers/testmodBuilder/mods v0.0.0-20190516214322-aa53ba81c9fb/go.mod h1:02pCCFh9qZreZ7KAHvfuvl/Udly83h/qK6PkFdvOFnY=
+github.com/gohugoio/hugoTestHelpers/testmodBuilder/mods v0.0.0-20190517085018-8fa85d583cb0 h1:p0miigrdBEsZbiIKAGFod0PPAUvEaRwzUwT7JdNvG+s=
+github.com/gohugoio/hugoTestHelpers/testmodBuilder/mods v0.0.0-20190517085018-8fa85d583cb0/go.mod h1:02pCCFh9qZreZ7KAHvfuvl/Udly83h/qK6PkFdvOFnY=
+github.com/gohugoio/testmodBuilder/mods v0.0.0-20190517090613-c997a01ef23e/go.mod h1:bOlVlCa1/RajcHpXkrUXPSHB/Re1UnlXxD1Qp8SKOd8=
+github.com/gohugoio/testmodBuilder/mods v0.0.0-20190517094041-b98f3b2132ba h1:UxjKjD65PXiJF4hbGfcDNWFmG35YnKyrMi1E3Ej62hw=
+github.com/gohugoio/testmodBuilder/mods v0.0.0-20190517094041-b98f3b2132ba/go.mod h1:bOlVlCa1/RajcHpXkrUXPSHB/Re1UnlXxD1Qp8SKOd8=
 github.com/golang/gddo v0.0.0-20181116215533-9bd4a3295021/go.mod h1:xEhNfoBDX1hzLm2Nf80qUvZ2sVwoMZ8d6IE2SrsQfh4=
 github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b/go.mod h1:SBH7ygxi8pfUlaOkMMuAQtPIUF8ecWP5IEl/CR7VP2Q=
 github.com/golang/groupcache v0.0.0-20181024230925-c65c006176ff/go.mod h1:cIg4eruTrX1D+g88fzRXU5OdNfaM+9IcxsU14FzY7Hc=

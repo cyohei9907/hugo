@@ -15,7 +15,7 @@ package hugolib
 
 import (
 	"fmt"
-	"path"
+	"strings"
 	"testing"
 
 	"github.com/gohugoio/hugo/hugofs"
@@ -24,21 +24,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TODO(bep) mod this fails when testmodBuilder is also building ...
 func TestHugoModules(t *testing.T) {
-	t.Parallel()
 
 	// We both produce and consume these for all of these,
 	// a test matrix Keanu Reeves would appreciate.
 	for _, goos := range []string{"linux", "darwin", "windows"} {
-		mods.SetGOOS(goos)
-		testmods := mods.CreateModules().Collect()
-
+		testmods := mods.CreateModules(goos).Collect()
 		for _, m := range testmods {
-			if len(m.Paths()) == 0 {
-				continue
-			}
+			m := m
+			t.Run(strings.Replace(m.Path(), ".", "/", -1), func(t *testing.T) {
+				t.Parallel()
 
-			t.Run(path.Join(goos, m.Name()), func(t *testing.T) {
 				assert := require.New(t)
 
 				v := viper.New()
