@@ -822,7 +822,6 @@ func (h *HugoSites) handleDataFile(r source.ReadableFile) error {
 	// Crawl in data tree to insert data
 	current = h.data
 	keyParts := strings.Split(r.Dir(), helpers.FilePathSeparator)
-	// TODO(bep) mod check this logic vs regular theme.
 	for _, key := range keyParts {
 		if key != "" {
 			if _, ok := current[key]; !ok {

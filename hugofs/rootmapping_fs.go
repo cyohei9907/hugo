@@ -142,14 +142,26 @@ func (fs *RootMappingFs) LstatIfPossible(name string) (os.FileInfo, bool, error)
 	if fs.isRoot(name) {
 		return newRootMappingDirFileInfo(name), false, nil
 	}
+
 	name, root := fs.realNameAndRoot(name)
 
+	var wasLstat bool
+	var fi os.FileInfo
+	var err error
+
 	if ls, ok := fs.Fs.(afero.Lstater); ok {
-		fi, b, err := ls.LstatIfPossible(name)
-		return &realFilenameInfo{FileInfo: fi, realFilename: name, virtualRoot: root}, b, err
+		fi, wasLstat, err = ls.LstatIfPossible(name)
+		if err != nil {
+			return nil, false, err
+		}
 	}
-	fi, err := fs.Stat(name)
-	return fi, false, err
+
+	if fi == nil {
+		fi, err = fs.Stat(name)
+	}
+
+	return &realFilenameInfo{FileInfo: fi, realFilename: name, virtualRoot: root}, wasLstat, err
+
 }
 
 func (fs *RootMappingFs) realNameAndRoot(name string) (string, string) {
@@ -159,7 +171,9 @@ func (fs *RootMappingFs) realNameAndRoot(name string) (string, string) {
 	}
 	keystr := string(key)
 
-	return filepath.Join(val.(string), strings.TrimPrefix(name, keystr)), keystr
+	filename := filepath.Join(val.(string), strings.TrimPrefix(name, keystr))
+
+	return filename, keystr
 }
 
 func (f *rootMappingFile) Readdir(count int) ([]os.FileInfo, error) {

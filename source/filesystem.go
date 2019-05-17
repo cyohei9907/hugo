@@ -69,6 +69,7 @@ func (f *Filesystem) add(name string, fi os.FileInfo) (err error) {
 	}
 
 	file = f.SourceSpec.NewFileInfo(base, name, false, fi)
+
 	f.files = append(f.files, file)
 
 	return err
