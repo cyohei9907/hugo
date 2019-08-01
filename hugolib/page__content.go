@@ -91,6 +91,10 @@ type rawPageContent struct {
 	// shortcodes, front matter, summary indicators.
 	parsed pageparser.Result
 
+	// The raw front matter, if set.
+	frontMatter           pageparser.Item
+	frontMatterLineNumber int
+
 	// Returns the position in bytes after any front matter.
 	posMainContent int
 

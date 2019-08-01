@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gohugoio/hugo/hugofs/files"
@@ -124,6 +125,14 @@ type pageMeta struct {
 	s *Site
 
 	renderingConfig *helpers.BlackFriday
+
+	// Any cascade element set on the section nodes.
+	// Is used to cascade common metadata downwards.
+	cascade map[string]interface{}
+
+	// We decode the front matter late, and we may try more than once
+	// in server mode.
+	metaInit sync.Once
 }
 
 func (p *pageMeta) Aliases() []string {
@@ -555,6 +564,10 @@ func (pm *pageMeta) setMetadata(p *pageState, frontmatter map[string]interface{}
 	}
 
 	pm.params["iscjklanguage"] = p.m.isCJKLanguage
+
+	if err := pm.applyDefaultValues(); err != nil {
+		return err
+	}
 
 	return nil
 }

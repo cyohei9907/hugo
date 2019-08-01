@@ -47,6 +47,7 @@ import (
 
 	"github.com/gohugoio/hugo/langs/i18n"
 	"github.com/gohugoio/hugo/resources/page"
+	"github.com/gohugoio/hugo/resources/resource"
 	"github.com/gohugoio/hugo/tpl"
 	"github.com/gohugoio/hugo/tpl/tplimpl"
 )
@@ -623,31 +624,69 @@ func (h *HugoSites) renderCrossSitesArtifacts() error {
 		s.siteCfg.sitemap.Filename, h.toSiteInfos(), smLayouts...)
 }
 
-// createMissingPages creates home page, taxonomies etc. that isnt't created as an
-// effect of having a content file.
-func (h *HugoSites) createMissingPages() error {
-
+// assignMetaData parses any front matter stored away and merges it with any
+// cascading data available.
+// TODO(bep) cascade workers
+func (h *HugoSites) assignMetaData() error {
 	for _, s := range h.Sites {
-		if s.isEnabled(page.KindHome) {
-			// home pages
-			homes := s.findWorkPagesByKind(page.KindHome)
-			if len(homes) > 1 {
-				panic("Too many homes")
-			}
-			var home *pageState
-			if len(homes) == 0 {
-				home = s.newPage(page.KindHome)
-				s.workAllPages = append(s.workAllPages, home)
-			} else {
-				home = homes[0]
-			}
-
-			s.home = home
+		section := s.home
+		if section == nil {
+			panic("no home set")
 		}
+
+		ma := &pagesMetadataHandler{dates: &resource.Dates{}}
+
+		if err := ma.handleSection(nil, section); err != nil {
+			return err
+		}
+
+		if ma.dates != nil {
+			section.m.Dates = *ma.dates
+		}
+
+		// The headless pages currently lives outside the main tree, which
+		// is unfortunate.
+		// TODO(bep) improve
+		for _, p := range s.headlessPages {
+			if _, err := ma.parseAndAssignMeta(false, nil, p); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// Will create sections (including home) with not content page.
+func (h *HugoSites) createMissingSectionPages() error {
+	for _, s := range h.Sites {
+		// home pages
+		homes := s.findWorkPagesByKind(page.KindHome)
+		if len(homes) > 1 {
+			panic("Too many homes")
+		}
+		var home *pageState
+		if len(homes) == 0 {
+			home = s.newPage(page.KindHome)
+			s.workAllPages = append(s.workAllPages, home)
+		} else {
+			home = homes[0]
+		}
+
+		s.home = home
 
 		// Will create content-less root sections.
 		newSections := s.assembleSections()
 		s.workAllPages = append(s.workAllPages, newSections...)
+	}
+
+	return nil
+}
+
+// Will create taxonomy term/list pages with not content page.
+func (h *HugoSites) createMissingTaxonomyPages() error {
+
+	for _, s := range h.Sites {
 
 		taxonomyTermEnabled := s.isEnabled(page.KindTaxonomyTerm)
 		taxonomyEnabled := s.isEnabled(page.KindTaxonomy)
@@ -741,25 +780,46 @@ func (h *HugoSites) removePageByFilename(filename string) {
 	}
 }
 
-func (h *HugoSites) createPageCollections() error {
+func (h *HugoSites) removeNoBuildPages() error {
 	for _, s := range h.Sites {
-		for _, p := range s.rawAllPages {
-			if !s.isEnabled(p.Kind()) {
-				continue
-			}
+		s.workAllPages = s.filterNoBuildPages(s.workAllPages)
+		s.workAllPages, s.headlessPages = s.filterHeadlessPages(s.workAllPages)
 
-			shouldBuild := s.shouldBuild(p)
-			s.buildStats.update(p)
-			if shouldBuild {
-				if p.m.headless {
-					s.headlessPages = append(s.headlessPages, p)
-				} else {
-					s.workAllPages = append(s.workAllPages, p)
-				}
-			}
-		}
 	}
 
+	return nil
+}
+
+func (s *Site) filterNoBuildPages(pages pageStatePages) pageStatePages {
+	tmp := pages[:0]
+	for _, p := range pages {
+		if s.shouldBuild(p) {
+			tmp = append(tmp, p)
+		}
+	}
+	return tmp
+}
+
+func (s *Site) filterHeadlessPages(pages pageStatePages) (pageStatePages, pageStatePages) {
+	tmp := pages[:0]
+	headless := make(pageStatePages, 0)
+	for _, p := range pages {
+		if p.m.headless {
+			headless = append(headless, p)
+		} else {
+			tmp = append(tmp, p)
+		}
+	}
+	return tmp, headless
+}
+
+func (h *HugoSites) createPageCollections() error {
+	for _, s := range h.Sites {
+		s.workAllPages = make(pageStatePages, len(s.rawAllPages))
+		copy(s.workAllPages, s.rawAllPages)
+	}
+
+	// TODO(bep) move these
 	allPages := newLazyPagesFactory(func() page.Pages {
 		var pages page.Pages
 		for _, s := range h.Sites {

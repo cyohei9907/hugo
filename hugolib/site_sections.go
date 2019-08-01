@@ -19,7 +19,6 @@ import (
 	"strings"
 
 	"github.com/gohugoio/hugo/resources/page"
-	"github.com/gohugoio/hugo/resources/resource"
 
 	radix "github.com/hashicorp/go-immutable-radix"
 )
@@ -41,10 +40,6 @@ func (s *SiteInfo) Home() (page.Page, error) {
 func (s *Site) assembleSections() pageStatePages {
 	var newPages pageStatePages
 
-	if !s.isEnabled(page.KindSection) {
-		return newPages
-	}
-
 	// Maps section kind pages to their path, i.e. "my/section"
 	sectionPages := make(map[string]*pageState)
 
@@ -60,9 +55,10 @@ func (s *Site) assembleSections() pageStatePages {
 	)
 
 	var (
-		inPages    = radix.New().Txn()
-		inSections = radix.New().Txn()
-		undecided  pageStatePages
+		inPages          = radix.New().Txn()
+		inSections       = radix.New().Txn()
+		undecided        pageStatePages
+		homeSectionPages page.Pages
 	)
 
 	home := s.findFirstWorkPageByKindIn(page.KindHome)
@@ -78,6 +74,7 @@ func (s *Site) assembleSections() pageStatePages {
 		if len(sections) == 0 {
 			// Root level pages. These will have the home page as their Parent.
 			p.parent = home
+			homeSectionPages = append(homeSectionPages, p)
 			continue
 		}
 
@@ -139,7 +136,6 @@ func (s *Site) assembleSections() pageStatePages {
 	var (
 		currentSection *pageState
 		children       page.Pages
-		dates          *resource.Dates
 		rootSections   = inSections.Commit().Root()
 	)
 
@@ -162,18 +158,10 @@ func (s *Site) assembleSections() pageStatePages {
 			if currentSection != nil {
 				// A new section
 				currentSection.setPages(children)
-				if dates != nil {
-					currentSection.m.Dates = *dates
-				}
 			}
 
 			currentSection = p
 			children = make(page.Pages, 0)
-			dates = nil
-			// Use section's dates from front matter if set.
-			if resource.IsZeroDates(currentSection) {
-				dates = &resource.Dates{}
-			}
 
 			return false
 
@@ -182,18 +170,12 @@ func (s *Site) assembleSections() pageStatePages {
 		// Regular page
 		p.parent = currentSection
 		children = append(children, p)
-		if dates != nil {
-			dates.UpdateDateAndLastmodIfAfter(p)
-		}
 
 		return false
 	})
 
 	if currentSection != nil {
 		currentSection.setPages(children)
-		if dates != nil {
-			currentSection.m.Dates = *dates
-		}
 	}
 
 	// Build the sections hierarchy
@@ -224,8 +206,6 @@ func (s *Site) assembleSections() pageStatePages {
 	mainSections, mainSectionsFound = s.Info.Params()[sectionsParamIdLower]
 
 	for _, sect := range sectionPages {
-		sect.sortParentSections()
-
 		if !mainSectionsFound {
 			weight := len(sect.Pages()) + (len(sect.Sections()) * 5)
 			if weight >= maxSectionWeight {
@@ -234,6 +214,8 @@ func (s *Site) assembleSections() pageStatePages {
 			}
 		}
 	}
+
+	home.setPages(homeSectionPages)
 
 	// Try to make this as backwards compatible as possible.
 	s.Info.Params()[sectionsParamId] = mainSections

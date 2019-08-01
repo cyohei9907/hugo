@@ -105,10 +105,6 @@ func newPageFromMeta(metaProvider *pageMeta) (*pageState, error) {
 		return nil, err
 	}
 
-	if err := metaProvider.applyDefaultValues(); err != nil {
-		return nil, err
-	}
-
 	ps.init.Add(func() (interface{}, error) {
 		pp, err := newPagePaths(metaProvider.s, ps, metaProvider)
 		if err != nil {
@@ -213,10 +209,6 @@ func newPageWithContent(f *fileInfo, s *Site, bundled bool, content resource.Ope
 
 	if err := ps.mapContent(metaProvider); err != nil {
 		return nil, ps.wrapError(err)
-	}
-
-	if err := metaProvider.applyDefaultValues(); err != nil {
-		return nil, err
 	}
 
 	ps.init.Add(func() (interface{}, error) {

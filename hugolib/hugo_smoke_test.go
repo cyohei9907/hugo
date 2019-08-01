@@ -30,6 +30,7 @@ func TestSmoke(t *testing.T) {
 baseURL = "https://example.com"
 title = "Simple Site"
 rssLimit = 3
+paginate = 4
 defaultContentLanguage = "en"
 enableRobotsTXT = true
 
@@ -193,7 +194,7 @@ Some **Markdown** in JSON shortcode.
 	b.AssertFileContent("public/index.html",
 		"home|In English",
 		"Site params: Rules",
-		"Pages: Pages(18)|Data Pages: Pages(18)",
+		"Pages: Pages(5)|Data Pages: Pages(5)",
 		"Paginator: 1",
 		"First Site: In English",
 		"RelPermalink: /",

@@ -20,6 +20,7 @@ package embedded
 var EmbeddedTemplates = [][2]string{
 	{`_default/robots.txt`, `User-agent: *`},
 	{`_default/rss.xml`, `{{- $pages := .Data.Pages -}}
+{{- if .IsHome }}{{ $pages = .Site.RegularPages }}{{ end -}}
 {{- $limit := .Site.Config.Services.RSS.Limit -}}
 {{- if ge $limit 1 -}}
 {{- $pages = $pages | first $limit -}}

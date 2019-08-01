@@ -239,7 +239,18 @@ func (h *HugoSites) assemble(config *BuildCfg) error {
 		return err
 	}
 
+	// Create pages for the section pages etc. without content file.
+	if err := h.createMissingSectionPages(); err != nil {
+		return err
+	}
+
 	if config.whatChanged.source {
+		// TODO(bep) cascade taxo meta?
+		// TODO(bep) cascade consider empty sections with expired etc.
+		if err := h.assignMetaData(); err != nil {
+			return err
+		}
+
 		for _, s := range h.Sites {
 			if err := s.assembleTaxonomies(); err != nil {
 				return err
@@ -247,8 +258,13 @@ func (h *HugoSites) assemble(config *BuildCfg) error {
 		}
 	}
 
-	// Create pagexs for the section pages etc. without content file.
-	if err := h.createMissingPages(); err != nil {
+	// Remove drafts, future posts etc.
+	if err := h.removeNoBuildPages(); err != nil {
+		return nil
+	}
+
+	// Create pages for the taxonomies without a content file.
+	if err := h.createMissingTaxonomyPages(); err != nil {
 		return err
 	}
 

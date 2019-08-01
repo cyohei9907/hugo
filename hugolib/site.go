@@ -101,8 +101,6 @@ type Site struct {
 
 	layoutHandler *output.LayoutHandler
 
-	buildStats *buildStats
-
 	language *langs.Language
 
 	siteCfg siteConfigHolder
@@ -355,7 +353,6 @@ func (s *Site) reset() *Site {
 		publisher:              s.publisher,
 		siteConfigConfig:       s.siteConfigConfig,
 		enableInlineShortcodes: s.enableInlineShortcodes,
-		buildStats:             &buildStats{},
 		init:                   s.init,
 		PageCollections:        newPageCollections(),
 		siteCfg:                s.siteCfg,
@@ -453,7 +450,6 @@ func newSite(cfg deps.DepsCfg) (*Site, error) {
 		outputFormatsConfig:    siteOutputFormatsConfig,
 		mediaTypesConfig:       siteMediaTypesConfig,
 		frontmatterHandler:     frontMatterHandler,
-		buildStats:             &buildStats{},
 		enableInlineShortcodes: cfg.Language.GetBool("enableInlineShortcodes"),
 		siteCfg:                siteConfig,
 	}
@@ -1550,7 +1546,6 @@ func (s *Site) assembleTaxonomies() error {
 func (s *Site) resetBuildState() {
 	s.relatedDocsHandler = s.relatedDocsHandler.Clone()
 	s.PageCollections = newPageCollectionsFromPages(s.rawAllPages)
-	s.buildStats = &buildStats{}
 	s.init.Reset()
 
 	for _, p := range s.rawAllPages {
@@ -1806,6 +1801,10 @@ func (s *Site) newPage(kind string, sections ...string) *pageState {
 }
 
 func (s *Site) shouldBuild(p page.Page) bool {
+	if !s.isEnabled(p.Kind()) {
+		return false
+	}
+
 	return shouldBuild(s.BuildFuture, s.BuildExpired,
 		s.BuildDrafts, p.Draft(), p.PublishDate(), p.ExpiryDate())
 }

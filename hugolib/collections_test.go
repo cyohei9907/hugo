@@ -79,6 +79,7 @@ tags_weight: %d
 	b.CreateSites().Build(BuildCfg{})
 
 	assert.Equal(1, len(b.H.Sites))
+
 	require.Len(t, b.H.Sites[0].RegularPages(), 2)
 
 	b.AssertFileContent("public/index.html",

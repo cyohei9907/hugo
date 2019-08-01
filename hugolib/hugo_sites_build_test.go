@@ -245,10 +245,8 @@ func doTestMultiSitesBuild(t *testing.T, configTemplate, configSuffix string) {
 
 	require.Equal(t, "en", enSite.language.Lang)
 
-	//dumpPages(enSite.RegularPages()...)
-
 	assert.Equal(5, len(enSite.RegularPages()))
-	assert.Equal(32, len(enSite.AllPages()))
+	assert.Equal(34, len(enSite.AllPages()))
 
 	// Check 404s
 	b.AssertFileContent("public/en/404.html", "404|en|404 Page not found")
@@ -286,7 +284,7 @@ func doTestMultiSitesBuild(t *testing.T, configTemplate, configSuffix string) {
 
 	require.Equal(t, "fr", frSite.language.Lang)
 	require.Len(t, frSite.RegularPages(), 4, "should have 3 pages")
-	require.Len(t, frSite.AllPages(), 32, "should have 32 total pages (including translations and nodes)")
+	require.Len(t, frSite.AllPages(), 34, "should have 34 total pages (including translations and nodes)")
 
 	for _, frenchPage := range frSite.RegularPages() {
 		p := frenchPage
@@ -470,13 +468,6 @@ func TestMultiSitesRebuild(t *testing.T) {
 			func(t *testing.T) {
 				assert.Len(enSite.RegularPages(), 4, "1 en removed")
 
-				// Check build stats
-				require.Equal(t, 1, enSite.buildStats.draftCount, "Draft")
-				require.Equal(t, 1, enSite.buildStats.futureCount, "Future")
-				require.Equal(t, 1, enSite.buildStats.expiredCount, "Expired")
-				require.Equal(t, 0, frSite.buildStats.draftCount, "Draft")
-				require.Equal(t, 1, frSite.buildStats.futureCount, "Future")
-				require.Equal(t, 1, frSite.buildStats.expiredCount, "Expired")
 			},
 		},
 		{
@@ -492,7 +483,7 @@ func TestMultiSitesRebuild(t *testing.T) {
 			},
 			func(t *testing.T) {
 				assert.Len(enSite.RegularPages(), 6)
-				assert.Len(enSite.AllPages(), 34)
+				assert.Len(enSite.AllPages(), 36)
 				assert.Len(frSite.RegularPages(), 5)
 				require.Equal(t, "new_fr_1", frSite.RegularPages()[3].Title())
 				require.Equal(t, "new_en_2", enSite.RegularPages()[0].Title())
@@ -545,7 +536,7 @@ func TestMultiSitesRebuild(t *testing.T) {
 			[]fsnotify.Event{{Name: filepath.FromSlash("layouts/_default/single.html"), Op: fsnotify.Write}},
 			func(t *testing.T) {
 				assert.Len(enSite.RegularPages(), 6)
-				assert.Len(enSite.AllPages(), 34)
+				assert.Len(enSite.AllPages(), 36)
 				assert.Len(frSite.RegularPages(), 5)
 				doc1 := readDestination(t, fs, "public/en/sect/doc1-slug/index.html")
 				require.True(t, strings.Contains(doc1, "Template Changed"), doc1)
@@ -562,7 +553,7 @@ func TestMultiSitesRebuild(t *testing.T) {
 			[]fsnotify.Event{{Name: filepath.FromSlash("i18n/fr.yaml"), Op: fsnotify.Write}},
 			func(t *testing.T) {
 				assert.Len(enSite.RegularPages(), 6)
-				assert.Len(enSite.AllPages(), 34)
+				assert.Len(enSite.AllPages(), 36)
 				assert.Len(frSite.RegularPages(), 5)
 				docEn := readDestination(t, fs, "public/en/sect/doc1-slug/index.html")
 				require.True(t, strings.Contains(docEn, "Hello"), "No Hello")
@@ -586,7 +577,7 @@ func TestMultiSitesRebuild(t *testing.T) {
 			},
 			func(t *testing.T) {
 				assert.Len(enSite.RegularPages(), 6)
-				assert.Len(enSite.AllPages(), 34)
+				assert.Len(enSite.AllPages(), 36)
 				assert.Len(frSite.RegularPages(), 5)
 				b.AssertFileContent("public/fr/sect/doc1/index.html", "Single", "Modified Shortcode: Salut")
 				b.AssertFileContent("public/en/sect/doc1-slug/index.html", "Single", "Modified Shortcode: Hello")

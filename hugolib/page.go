@@ -30,7 +30,6 @@ import (
 	"github.com/gohugoio/hugo/helpers"
 
 	"github.com/gohugoio/hugo/common/herrors"
-	"github.com/gohugoio/hugo/parser/metadecoders"
 
 	"github.com/gohugoio/hugo/parser/pageparser"
 	"github.com/pkg/errors"
@@ -131,8 +130,7 @@ func (p *pageState) Pages() page.Pages {
 
 		switch p.Kind() {
 		case page.KindPage:
-		case page.KindHome:
-			pages = p.s.RegularPages()
+		case page.KindHome, page.KindSection:
 		case page.KindTaxonomy:
 			termInfo := p.getTaxonomyNodeInfo()
 			taxonomy := p.s.Taxonomies[termInfo.plural].Get(termInfo.termKey)
@@ -360,7 +358,6 @@ func (p *pageState) initPage() error {
 }
 
 func (p *pageState) setPages(pages page.Pages) {
-	page.SortByDefault(pages)
 	p.pages = pages
 }
 
@@ -529,19 +526,11 @@ Loop:
 			p.renderable = false
 			rn.AddBytes(it)
 		case it.IsFrontMatter():
-			f := metadecoders.FormatFromFrontMatterType(it.Type)
-			m, err := metadecoders.Default.UnmarshalToMap(it.Val, f)
-			if err != nil {
-				if fe, ok := err.(herrors.FileError); ok {
-					return herrors.ToFileErrorWithOffset(fe, iter.LineNumber()-1)
-				} else {
-					return err
-				}
-			}
-
-			if err := meta.setMetadata(p, m); err != nil {
-				return err
-			}
+			// To support cascading front matter, we need to wait until
+			// we have created the section tree until we have the full set
+			// of metadata, so store the raw front matter away for later.
+			p.source.frontMatter = it
+			p.source.frontMatterLineNumber = iter.LineNumber() - 1
 
 			next := iter.Peek()
 			if !next.IsDone() {
@@ -755,13 +744,6 @@ func (p *pageState) getTaxonomyNodeInfo() *taxonomyNodeInfo {
 
 	return info
 
-}
-
-func (p *pageState) sortParentSections() {
-	if p.parent == nil {
-		return
-	}
-	page.SortByDefault(p.parent.subSections)
 }
 
 // sourceRef returns the reference used by GetPage and ref/relref shortcodes to refer to
