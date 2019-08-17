@@ -19,18 +19,22 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gohugoio/hugo/resources/internal"
+	"github.com/gohugoio/hugo/resources/resource_common"
+
 	"github.com/pkg/errors"
+
+	"fmt"
+	"io"
+	"sync"
 
 	"github.com/gohugoio/hugo/common/collections"
 	"github.com/gohugoio/hugo/common/herrors"
 	"github.com/gohugoio/hugo/common/hugio"
 	"github.com/gohugoio/hugo/helpers"
 	"github.com/gohugoio/hugo/resources/resource"
+	"github.com/gohugoio/hugo/resources/resource_common"
 	"github.com/mitchellh/hashstructure"
-
-	"fmt"
-	"io"
-	"sync"
 
 	"github.com/gohugoio/hugo/media"
 
@@ -167,17 +171,10 @@ type ResourceTransformation interface {
 	Transform(ctx *ResourceTransformationCtx) error
 }
 
-// We will persist this information to disk.
-type transformedResourceMetadata struct {
-	Target     string                 `json:"Target"`
-	MediaTypeV string                 `json:"MediaType"`
-	MetaData   map[string]interface{} `json:"Data"`
-}
-
 type transformedResource struct {
-	commonResource
+	internal.CommonResource
 
-	cache *ResourceCache
+	cache *resource_common.ResourceCache
 
 	// This is the filename inside resources/_gen/assets
 	sourceFilename string
@@ -199,7 +196,7 @@ type transformedResource struct {
 	// The transformed values
 	content     string
 	contentInit sync.Once
-	transformedResourceMetadata
+	resource_common.TransformedResourceMetadata
 
 	// The source
 	resource.Resource

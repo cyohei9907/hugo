@@ -26,7 +26,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gohugoio/hugo/resources/internal"
 	"github.com/gohugoio/hugo/resources/resource"
+	"github.com/gohugoio/hugo/resources/resource_common"
 
 	_errors "github.com/pkg/errors"
 
@@ -49,87 +51,17 @@ var (
 	_ resource.Cloner   = (*Image)(nil)
 )
 
-// Imaging contains default image processing configuration. This will be fetched
-// from site (or language) config.
-type Imaging struct {
-	// Default image quality setting (1-100). Only used for JPEG images.
-	Quality int
-
-	// Resample filter used. See https://github.com/disintegration/imaging
-	ResampleFilter string
-
-	// The anchor used in Fill. Default is "smart", i.e. Smart Crop.
-	Anchor string
-}
-
-const (
-	defaultJPEGQuality    = 75
-	defaultResampleFilter = "box"
-)
-
-var (
-	imageFormats = map[string]imaging.Format{
-		".jpg":  imaging.JPEG,
-		".jpeg": imaging.JPEG,
-		".png":  imaging.PNG,
-		".tif":  imaging.TIFF,
-		".tiff": imaging.TIFF,
-		".bmp":  imaging.BMP,
-		".gif":  imaging.GIF,
-	}
-
-	// Add or increment if changes to an image format's processing requires
-	// re-generation.
-	imageFormatsVersions = map[imaging.Format]int{
-		imaging.PNG: 2, // Floyd Steinberg dithering
-	}
-
-	// Increment to mark all processed images as stale. Only use when absolutely needed.
-	// See the finer grained smartCropVersionNumber and imageFormatsVersions.
-	mainImageVersionNumber = 0
-)
-
-var anchorPositions = map[string]imaging.Anchor{
-	strings.ToLower("Center"):      imaging.Center,
-	strings.ToLower("TopLeft"):     imaging.TopLeft,
-	strings.ToLower("Top"):         imaging.Top,
-	strings.ToLower("TopRight"):    imaging.TopRight,
-	strings.ToLower("Left"):        imaging.Left,
-	strings.ToLower("Right"):       imaging.Right,
-	strings.ToLower("BottomLeft"):  imaging.BottomLeft,
-	strings.ToLower("Bottom"):      imaging.Bottom,
-	strings.ToLower("BottomRight"): imaging.BottomRight,
-}
-
-var imageFilters = map[string]imaging.ResampleFilter{
-	strings.ToLower("NearestNeighbor"):   imaging.NearestNeighbor,
-	strings.ToLower("Box"):               imaging.Box,
-	strings.ToLower("Linear"):            imaging.Linear,
-	strings.ToLower("Hermite"):           imaging.Hermite,
-	strings.ToLower("MitchellNetravali"): imaging.MitchellNetravali,
-	strings.ToLower("CatmullRom"):        imaging.CatmullRom,
-	strings.ToLower("BSpline"):           imaging.BSpline,
-	strings.ToLower("Gaussian"):          imaging.Gaussian,
-	strings.ToLower("Lanczos"):           imaging.Lanczos,
-	strings.ToLower("Hann"):              imaging.Hann,
-	strings.ToLower("Hamming"):           imaging.Hamming,
-	strings.ToLower("Blackman"):          imaging.Blackman,
-	strings.ToLower("Bartlett"):          imaging.Bartlett,
-	strings.ToLower("Welch"):             imaging.Welch,
-	strings.ToLower("Cosine"):            imaging.Cosine,
-}
-
 // Image represents an image resource.
 type Image struct {
 	config       image.Config
 	configInit   sync.Once
 	configLoaded bool
 
-	imaging *Imaging
+	imaging *resource_common.Imaging
 
 	format imaging.Format
 
-	*genericResource
+	*internal.GenericResource
 }
 
 // Width returns i's width.
@@ -149,7 +81,7 @@ func (i *Image) WithNewBase(base string) resource.Resource {
 	return &Image{
 		imaging:         i.imaging,
 		format:          i.format,
-		genericResource: i.genericResource.WithNewBase(base).(*genericResource)}
+		GenericResource: i.GenericResource.WithNewBase(base).(*internal.GenericResource)}
 }
 
 // Resize resizes the image to the specified width and height using the specified resampling
@@ -205,7 +137,7 @@ type imageConfig struct {
 }
 
 func (i *Image) isJPEG() bool {
-	name := strings.ToLower(i.relTargetDirFile.file)
+	name := strings.ToLower(i.RelTargetDirFile.File)
 	return strings.HasSuffix(name, ".jpg") || strings.HasSuffix(name, ".jpeg")
 }
 
@@ -560,7 +492,7 @@ func (i *Image) relTargetPathFromConfig(conf imageConfig) dirFile {
 
 }
 
-func decodeImaging(m map[string]interface{}) (Imaging, error) {
+func decodeImaging(m map[string]interface{}) (resource_common.Imaging, error) {
 	var i Imaging
 	if err := mapstructure.WeakDecode(m, &i); err != nil {
 		return i, err

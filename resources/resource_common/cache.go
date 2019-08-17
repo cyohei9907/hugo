@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package resources
+package resource_common
 
 import (
 	"encoding/json"
@@ -210,11 +210,11 @@ func (c *ResourceCache) getFilenames(key string) (string, string) {
 	return filenameMeta, filenameContent
 }
 
-func (c *ResourceCache) getFromFile(key string) (filecache.ItemInfo, io.ReadCloser, transformedResourceMetadata, bool) {
+func (c *ResourceCache) getFromFile(key string) (filecache.ItemInfo, io.ReadCloser, TransformedResourceMetadata, bool) {
 	c.RLock()
 	defer c.RUnlock()
 
-	var meta transformedResourceMetadata
+	var meta TransformedResourceMetadata
 	filenameMeta, filenameContent := c.getFilenames(key)
 
 	_, jsonContent, _ := c.fileCache.GetBytes(filenameMeta)
@@ -233,7 +233,7 @@ func (c *ResourceCache) getFromFile(key string) (filecache.ItemInfo, io.ReadClos
 }
 
 // writeMeta writes the metadata to file and returns a writer for the content part.
-func (c *ResourceCache) writeMeta(key string, meta transformedResourceMetadata) (filecache.ItemInfo, io.WriteCloser, error) {
+func (c *ResourceCache) writeMeta(key string, meta TransformedResourceMetadata) (filecache.ItemInfo, io.WriteCloser, error) {
 	filenameMeta, filenameContent := c.getFilenames(key)
 	raw, err := json.Marshal(meta)
 	if err != nil {
@@ -294,4 +294,11 @@ func (c *ResourceCache) DeletePartitions(partitions ...string) {
 		}
 	}
 
+}
+
+// We will persist this information to disk.
+type TransformedResourceMetadata struct {
+	Target     string                 `json:"Target"`
+	MediaTypeV string                 `json:"MediaType"`
+	MetaData   map[string]interface{} `json:"Data"`
 }

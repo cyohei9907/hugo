@@ -48,11 +48,15 @@ type BaseFs struct {
 	// SourceFilesystems contains the different source file systems.
 	*SourceFilesystems
 
-	// The filesystem used to publish the rendered site.
-	// This usually maps to /my-project/public.
-	PublishFs afero.Fs
+	publishFs afero.Fs
 
 	theBigFs *filesystemsCollector
+}
+
+// PublishFs is the filesystem used to publish the rendered site.
+// This usually maps to /my-project/public.
+func (fs *BaseFs) PublishFs() afero.Fs {
+	return fs.publishFs
 }
 
 func (fs *BaseFs) WatchDirs() []hugofs.FileMetaInfo {
@@ -311,7 +315,7 @@ func NewBase(p *paths.Paths, logger *loggers.Logger, options ...func(*BaseFs) er
 	publishFs := afero.NewBasePathFs(fs.Destination, p.AbsPublishDir)
 
 	b := &BaseFs{
-		PublishFs: publishFs,
+		publishFs: publishFs,
 	}
 
 	for _, opt := range options {

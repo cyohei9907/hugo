@@ -29,7 +29,7 @@ import (
 )
 
 var (
-	_ metaAssigner = (*genericResource)(nil)
+	_ metaAssigner = (*GenericResource)(nil)
 )
 
 // metaAssigner allows updating metadata in resources that supports it.

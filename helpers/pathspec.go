@@ -78,6 +78,11 @@ func NewPathSpecWithBaseBaseFsProvided(fs *hugofs.Fs, cfg config.Provider, logge
 	return ps, nil
 }
 
+// PermalinkForBaseURL creates a permalink from the given link and the configured baseURL.
+func (p *PathSpec) Permalink(link string) string {
+	return p.PermalinkForBaseURL(link, p.BaseURL.HostURL())
+}
+
 // PermalinkForBaseURL creates a permalink from the given link and baseURL.
 func (p *PathSpec) PermalinkForBaseURL(link, baseURL string) string {
 	link = strings.TrimPrefix(link, "/")
