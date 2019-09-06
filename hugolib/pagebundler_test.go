@@ -105,7 +105,7 @@ func TestPageBundlerSiteRegular(t *testing.T) {
 						c.Assert(s.getPage("page", "a/1"), qt.Equals, singlePage)
 						c.Assert(s.getPage("page", "1"), qt.Equals, singlePage)
 
-						c.Assert(content(singlePage), qt.Contains, "TheContent")
+						c.Assert(getContent(singlePage), qt.Contains, "TheContent")
 
 						relFilename := func(basePath, outBase string) (string, string) {
 							rel := basePath
@@ -139,10 +139,10 @@ func TestPageBundlerSiteRegular(t *testing.T) {
 							"Single RelPermalink: "+rel,
 						)
 
-						b.AssertFileContent(filepath.FromSlash("/work/public/images/hugo-logo.png"), "content")
+						b.AssertFileContent(filepath.FromSlash("/work/public/images/hugo-logo.png"), "getContent")
 
 						// This should be just copied to destination.
-						b.AssertFileContent(filepath.FromSlash("/work/public/assets/pic1.png"), "content")
+						b.AssertFileContent(filepath.FromSlash("/work/public/assets/pic1.png"), "getContent")
 
 						leafBundle1 := s.getPage(page.KindPage, "b/my-bundle/index.md")
 						c.Assert(leafBundle1, qt.Not(qt.IsNil))
@@ -174,11 +174,11 @@ func TestPageBundlerSiteRegular(t *testing.T) {
 						secondPage := pageResources[1].(page.Page)
 
 						c.Assert(firstPage.File().Filename(), qt.Equals, filepath.FromSlash("/work/base/b/my-bundle/1.md"))
-						c.Assert(content(firstPage), qt.Contains, "TheContent")
+						c.Assert(getContent(firstPage), qt.Contains, "TheContent")
 						c.Assert(len(leafBundle1.Resources()), qt.Equals, 6)
 
 						// Verify shortcode in bundled page
-						c.Assert(content(secondPage), qt.Contains, filepath.FromSlash("MyShort in b/my-bundle/2.md"))
+						c.Assert(getContent(secondPage), qt.Contains, filepath.FromSlash("MyShort in b/my-bundle/2.md"))
 
 						// https://github.com/gohugoio/hugo/issues/4582
 						c.Assert(firstPage.Parent(), qt.Equals, leafBundle1)
@@ -220,8 +220,8 @@ func TestPageBundlerSiteRegular(t *testing.T) {
 							)
 						}
 
-						b.AssertFileContent(filepath.FromSlash("/work/public/2017/pageslug/c/logo.png"), "content")
-						b.AssertFileContent(filepath.FromSlash("/work/public/cpath/2017/pageslug/c/logo.png"), "content")
+						b.AssertFileContent(filepath.FromSlash("/work/public/2017/pageslug/c/logo.png"), "getContent")
+						b.AssertFileContent(filepath.FromSlash("/work/public/cpath/2017/pageslug/c/logo.png"), "getContent")
 						c.Assert(b.CheckExists("/work/public/cpath/cpath/2017/pageslug/c/logo.png"), qt.Equals, false)
 
 						// Custom media type defined in site config.
@@ -410,39 +410,39 @@ func TestPageBundlerSiteWitSymbolicLinksInContent(t *testing.T) {
 	workDir, clean, err := htesting.CreateTempDir(hugofs.Os, "hugosym")
 	c.Assert(err, qt.IsNil)
 
-	contentDirName := "content"
+	getContentDirName := "getContent"
 
-	contentDir := filepath.Join(workDir, contentDirName)
-	c.Assert(os.MkdirAll(filepath.Join(contentDir, "a"), 0777), qt.IsNil)
+	getContentDir := filepath.Join(workDir, getContentDirName)
+	c.Assert(os.MkdirAll(filepath.Join(getContentDir, "a"), 0777), qt.IsNil)
 
 	for i := 1; i <= 3; i++ {
-		c.Assert(os.MkdirAll(filepath.Join(workDir, fmt.Sprintf("symcontent%d", i)), 0777), qt.IsNil)
+		c.Assert(os.MkdirAll(filepath.Join(workDir, fmt.Sprintf("symgetContent%d", i)), 0777), qt.IsNil)
 	}
 
-	c.Assert(os.MkdirAll(filepath.Join(workDir, "symcontent2", "a1"), 0777), qt.IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(workDir, "symgetContent2", "a1"), 0777), qt.IsNil)
 
-	// Symlinked sections inside content.
-	os.Chdir(contentDir)
+	// Symlinked sections inside getContent.
+	os.Chdir(getContentDir)
 	for i := 1; i <= 3; i++ {
-		c.Assert(os.Symlink(filepath.FromSlash(fmt.Sprintf(("../symcontent%d"), i)), fmt.Sprintf("symbolic%d", i)), qt.IsNil)
+		c.Assert(os.Symlink(filepath.FromSlash(fmt.Sprintf(("../symgetContent%d"), i)), fmt.Sprintf("symbolic%d", i)), qt.IsNil)
 	}
 
-	c.Assert(os.Chdir(filepath.Join(contentDir, "a")), qt.IsNil)
+	c.Assert(os.Chdir(filepath.Join(getContentDir, "a")), qt.IsNil)
 
-	// Create a symlink to one single content file
-	c.Assert(os.Symlink(filepath.FromSlash("../../symcontent2/a1/page.md"), "page_s.md"), qt.IsNil)
+	// Create a symlink to one single getContent file
+	c.Assert(os.Symlink(filepath.FromSlash("../../symgetContent2/a1/page.md"), "page_s.md"), qt.IsNil)
 
-	c.Assert(os.Chdir(filepath.FromSlash("../../symcontent3")), qt.IsNil)
+	c.Assert(os.Chdir(filepath.FromSlash("../../symgetContent3")), qt.IsNil)
 
 	// Create a circular symlink. Will print some warnings.
-	c.Assert(os.Symlink(filepath.Join("..", contentDirName), filepath.FromSlash("circus")), qt.IsNil)
+	c.Assert(os.Symlink(filepath.Join("..", getContentDirName), filepath.FromSlash("circus")), qt.IsNil)
 
 	c.Assert(os.Chdir(workDir), qt.IsNil)
 
 	defer clean()
 
 	cfg.Set("workingDir", workDir)
-	cfg.Set("contentDir", contentDirName)
+	cfg.Set("getContentDir", getContentDirName)
 	cfg.Set("baseURL", "https://example.com")
 
 	layout := `{{ .Title }}|{{ .Content }}`
@@ -469,20 +469,20 @@ TheContent.
 	)
 
 	b.WithSourceFile(
-		"symcontent1/s1.md", fmt.Sprintf(pageContent, "s1"),
-		"symcontent1/s2.md", fmt.Sprintf(pageContent, "s2"),
+		"symgetContent1/s1.md", fmt.Sprintf(pageContent, "s1"),
+		"symgetContent1/s2.md", fmt.Sprintf(pageContent, "s2"),
 		// Regular files inside symlinked folder.
-		"symcontent1/s1.md", fmt.Sprintf(pageContent, "s1"),
-		"symcontent1/s2.md", fmt.Sprintf(pageContent, "s2"),
+		"symgetContent1/s1.md", fmt.Sprintf(pageContent, "s1"),
+		"symgetContent1/s2.md", fmt.Sprintf(pageContent, "s2"),
 
 		// A bundle
-		"symcontent2/a1/index.md", fmt.Sprintf(pageContent, ""),
-		"symcontent2/a1/page.md", fmt.Sprintf(pageContent, "page"),
-		"symcontent2/a1/logo.png", "image",
+		"symgetContent2/a1/index.md", fmt.Sprintf(pageContent, ""),
+		"symgetContent2/a1/page.md", fmt.Sprintf(pageContent, "page"),
+		"symgetContent2/a1/logo.png", "image",
 
 		// Assets
-		"symcontent3/s1.png", "image",
-		"symcontent3/s2.png", "image",
+		"symgetContent3/s1.png", "image",
+		"symgetContent3/s2.png", "image",
 	)
 
 	b.Build(BuildCfg{})
@@ -508,7 +508,7 @@ func TestPageBundlerHeadless(t *testing.T) {
 
 	workDir := "/work"
 	cfg.Set("workingDir", workDir)
-	cfg.Set("contentDir", "base")
+	cfg.Set("getContentDir", "base")
 	cfg.Set("baseURL", "https://example.com")
 
 	pageContent := `---
@@ -557,7 +557,7 @@ HEADLESS {{< myShort >}}
 	c.Assert(headless.Title(), qt.Equals, "Headless Bundle in Topless Bar")
 	c.Assert(headless.RelPermalink(), qt.Equals, "")
 	c.Assert(headless.Permalink(), qt.Equals, "")
-	c.Assert(content(headless), qt.Contains, "HEADLESS SHORTCODE")
+	c.Assert(getContent(headless), qt.Contains, "HEADLESS SHORTCODE")
 
 	headlessResources := headless.Resources()
 	c.Assert(len(headlessResources), qt.Equals, 3)
@@ -565,7 +565,7 @@ HEADLESS {{< myShort >}}
 	pageResource := headlessResources.GetMatch("p*")
 	c.Assert(pageResource, qt.Not(qt.IsNil))
 	p := pageResource.(page.Page)
-	c.Assert(content(p), qt.Contains, "SHORTCODE")
+	c.Assert(getContent(p), qt.Contains, "SHORTCODE")
 	c.Assert(p.Name(), qt.Equals, "p1.md")
 
 	th := newTestHelper(s.Cfg, s.Fs, t)
@@ -591,10 +591,10 @@ defaultContentLanguage = "en"
 [languages]
 [languages.en]
 weight = 10
-contentDir = "content/en"
+getContentDir = "getContent/en"
 [languages.nn]
 weight = 20
-contentDir = "content/nn"
+getContentDir = "getContent/nn"
 
 
 `)
@@ -622,7 +622,7 @@ headless: true
 Title: Home
 ---
 
-Home content.
+Home getContent.
 
 `)
 
@@ -631,7 +631,7 @@ Home content.
 Title: Section Page
 ---
 
-Section content.
+Section getContent.
 
 `)
 
@@ -641,7 +641,7 @@ Title: Section Single
 Date: 2018-02-01
 ---
 
-Single content.
+Single getContent.
 
 `)
 
@@ -659,8 +659,8 @@ Single content.
 	c.Assert(homeEn, qt.Not(qt.IsNil))
 	c.Assert(homeEn.Date().Year(), qt.Equals, 2018)
 
-	b.AssertFileContent("public/section-not-bundle/index.html", "Section Page", "Content: <p>Section content.</p>")
-	b.AssertFileContent("public/section-not-bundle/single/index.html", "Section Single", "|<p>Single content.</p>")
+	b.AssertFileContent("public/section-not-bundle/index.html", "Section Page", "Content: <p>Section getContent.</p>")
+	b.AssertFileContent("public/section-not-bundle/single/index.html", "Section Single", "|<p>Single getContent.</p>")
 
 }
 
@@ -670,7 +670,7 @@ func newTestBundleSources(t *testing.T) (*hugofs.Fs, *viper.Viper) {
 
 	workDir := "/work"
 	cfg.Set("workingDir", workDir)
-	cfg.Set("contentDir", "base")
+	cfg.Set("getContentDir", "base")
 	cfg.Set("baseURL", "https://example.com")
 	cfg.Set("mediaTypes", map[string]interface{}{
 		"text/bepsays": map[string]interface{}{
@@ -771,7 +771,7 @@ Short Thumb Width: {{ $thumb.Width }}
 	writeSource(t, fs, filepath.Join(workDir, "base", "_1.md"), pageContent)
 	writeSource(t, fs, filepath.Join(workDir, "base", "_1.png"), pageContent)
 
-	writeSource(t, fs, filepath.Join(workDir, "base", "images", "hugo-logo.png"), "content")
+	writeSource(t, fs, filepath.Join(workDir, "base", "images", "hugo-logo.png"), "getContent")
 	writeSource(t, fs, filepath.Join(workDir, "base", "a", "2.md"), pageContent)
 	writeSource(t, fs, filepath.Join(workDir, "base", "a", "1.md"), pageContent)
 
@@ -779,8 +779,8 @@ Short Thumb Width: {{ $thumb.Width }}
 	writeSource(t, fs, filepath.Join(workDir, "base", "a", "b", "ab1.md"), pageContentNoSlug)
 
 	// Mostly plain static assets in a folder with a page in a sub folder thrown in.
-	writeSource(t, fs, filepath.Join(workDir, "base", "assets", "pic1.png"), "content")
-	writeSource(t, fs, filepath.Join(workDir, "base", "assets", "pic2.png"), "content")
+	writeSource(t, fs, filepath.Join(workDir, "base", "assets", "pic1.png"), "getContent")
+	writeSource(t, fs, filepath.Join(workDir, "base", "assets", "pic2.png"), "getContent")
 	writeSource(t, fs, filepath.Join(workDir, "base", "assets", "pages", "mypage.md"), pageContent)
 
 	// Bundle
@@ -788,7 +788,7 @@ Short Thumb Width: {{ $thumb.Width }}
 	writeSource(t, fs, filepath.Join(workDir, "base", "b", "my-bundle", "1.md"), pageContent)
 	writeSource(t, fs, filepath.Join(workDir, "base", "b", "my-bundle", "2.md"), pageContentShortcode)
 	writeSource(t, fs, filepath.Join(workDir, "base", "b", "my-bundle", "custom-mime.bep"), "bepsays")
-	writeSource(t, fs, filepath.Join(workDir, "base", "b", "my-bundle", "c", "logo.png"), "content")
+	writeSource(t, fs, filepath.Join(workDir, "base", "b", "my-bundle", "c", "logo.png"), "getContent")
 
 	// Bundle with 은행 slug
 	// See https://github.com/gohugoio/hugo/issues/4241
@@ -804,7 +804,7 @@ Content for 은행.
 	// Bundle in root
 	writeSource(t, fs, filepath.Join(workDir, "base", "root", "index.md"), pageWithImageShortcodeAndResourceMetadataContent)
 	writeSource(t, fs, filepath.Join(workDir, "base", "root", "1.md"), pageContent)
-	writeSource(t, fs, filepath.Join(workDir, "base", "root", "c", "logo.png"), "content")
+	writeSource(t, fs, filepath.Join(workDir, "base", "root", "c", "logo.png"), "getContent")
 
 	writeSource(t, fs, filepath.Join(workDir, "base", "c", "bundle", "logo-은행.png"), "은행 PNG")
 
@@ -836,7 +836,7 @@ func newTestBundleSourcesMultilingual(t *testing.T) (*hugofs.Fs, *viper.Viper) {
 
 	workDir := "/work"
 	cfg.Set("workingDir", workDir)
-	cfg.Set("contentDir", "base")
+	cfg.Set("getContentDir", "base")
 	cfg.Set("baseURL", "https://example.com")
 	cfg.Set("defaultContentLanguage", "en")
 
@@ -868,18 +868,18 @@ TheContent.
 
 	writeSource(t, fs, filepath.Join(workDir, "base", "1s", "mypage.md"), pageContent)
 	writeSource(t, fs, filepath.Join(workDir, "base", "1s", "mypage.nn.md"), pageContent)
-	writeSource(t, fs, filepath.Join(workDir, "base", "1s", "mylogo.png"), "content")
+	writeSource(t, fs, filepath.Join(workDir, "base", "1s", "mylogo.png"), "getContent")
 
 	writeSource(t, fs, filepath.Join(workDir, "base", "bb", "_index.md"), pageContent)
 	writeSource(t, fs, filepath.Join(workDir, "base", "bb", "_index.nn.md"), pageContent)
 	writeSource(t, fs, filepath.Join(workDir, "base", "bb", "en.md"), pageContent)
 	writeSource(t, fs, filepath.Join(workDir, "base", "bb", "_1.md"), pageContent)
 	writeSource(t, fs, filepath.Join(workDir, "base", "bb", "_1.nn.md"), pageContent)
-	writeSource(t, fs, filepath.Join(workDir, "base", "bb", "a.png"), "content")
-	writeSource(t, fs, filepath.Join(workDir, "base", "bb", "b.png"), "content")
-	writeSource(t, fs, filepath.Join(workDir, "base", "bb", "b.nn.png"), "content")
-	writeSource(t, fs, filepath.Join(workDir, "base", "bb", "c.nn.png"), "content")
-	writeSource(t, fs, filepath.Join(workDir, "base", "bb", "b", "d.nn.png"), "content")
+	writeSource(t, fs, filepath.Join(workDir, "base", "bb", "a.png"), "getContent")
+	writeSource(t, fs, filepath.Join(workDir, "base", "bb", "b.png"), "getContent")
+	writeSource(t, fs, filepath.Join(workDir, "base", "bb", "b.nn.png"), "getContent")
+	writeSource(t, fs, filepath.Join(workDir, "base", "bb", "c.nn.png"), "getContent")
+	writeSource(t, fs, filepath.Join(workDir, "base", "bb", "b", "d.nn.png"), "getContent")
 
 	writeSource(t, fs, filepath.Join(workDir, "base", "bc", "_index.md"), pageContent)
 	writeSource(t, fs, filepath.Join(workDir, "base", "bc", "_index.nn.md"), pageContent)
@@ -905,10 +905,10 @@ TheContent.
 	writeSource(t, fs, filepath.Join(workDir, "base", "lb", "2.md"), pageContent)
 	writeSource(t, fs, filepath.Join(workDir, "base", "lb", "2.nn.md"), pageContent)
 	writeSource(t, fs, filepath.Join(workDir, "base", "lb", "c", "page.md"), pageContent)
-	writeSource(t, fs, filepath.Join(workDir, "base", "lb", "c", "logo.png"), "content")
-	writeSource(t, fs, filepath.Join(workDir, "base", "lb", "c", "logo.nn.png"), "content")
-	writeSource(t, fs, filepath.Join(workDir, "base", "lb", "c", "one.png"), "content")
-	writeSource(t, fs, filepath.Join(workDir, "base", "lb", "c", "d", "deep.png"), "content")
+	writeSource(t, fs, filepath.Join(workDir, "base", "lb", "c", "logo.png"), "getContent")
+	writeSource(t, fs, filepath.Join(workDir, "base", "lb", "c", "logo.nn.png"), "getContent")
+	writeSource(t, fs, filepath.Join(workDir, "base", "lb", "c", "one.png"), "getContent")
+	writeSource(t, fs, filepath.Join(workDir, "base", "lb", "c", "d", "deep.png"), "getContent")
 
 	//Translated bundle in some sensible sub path.
 	writeSource(t, fs, filepath.Join(workDir, "base", "bf", "my-bf-bundle", "index.md"), pageContent)
@@ -944,7 +944,7 @@ date: 2017-01-15
 	b.AssertFileContent("public/mybundle/data.json", "MyData")
 
 	// Change the bundled JSON file and make sure it gets republished.
-	b.EditFiles("content/mybundle/data.json", "My changed data")
+	b.EditFiles("getContent/mybundle/data.json", "My changed data")
 
 	b.Build(BuildCfg{})
 
@@ -986,21 +986,21 @@ func TestBundleMisc(t *testing.T) {
 baseURL = "https://example.com"
 defaultContentLanguage = "en"
 defaultContentLanguageInSubdir = true
-ignoreFiles = ["README\\.md", "content/en/ignore"]
+ignoreFiles = ["README\\.md", "getContent/en/ignore"]
 
 [Languages]
 [Languages.en]
 weight = 99999
-contentDir = "content/en"
+getContentDir = "getContent/en"
 [Languages.nn]
 weight = 20
-contentDir = "content/nn"
+getContentDir = "getContent/nn"
 [Languages.sv]
 weight = 30
-contentDir = "content/sv"
+getContentDir = "getContent/sv"
 [Languages.nb]
 weight = 40
-contentDir = "content/nb"
+getContentDir = "getContent/nb"
 
 `
 
@@ -1077,7 +1077,7 @@ slug: leaf
 	})
 
 	// Check order of inherited data file
-	b.AssertFileContent("public/nb/b1/data1.json", "en: data") // Default content
+	b.AssertFileContent("public/nb/b1/data1.json", "en: data") // Default getContent
 	b.AssertFileContent("public/nn/b1/data2.json", "sv: data") // First match
 
 	b.AssertFileContent("public/en/enonly/myen/index.html", "Single: en: Page")
@@ -1142,13 +1142,13 @@ title: %q
 	b.WithContent("blog/sect2/b1/data.json", dataContent("s2.b1.data"))
 
 	b.WithContent("blog/sect2/b2/index.md", pageContent("s2.b2"))
-	b.WithContent("blog/sect2/b2/bp.md", pageContent("s2.b2.bundlecontent"))
+	b.WithContent("blog/sect2/b2/bp.md", pageContent("s2.b2.bundlegetContent"))
 
 	b.WithContent("blog/sect2/b3/index.md", pageContent("s2.b3"))
-	b.WithContent("blog/sect2/b3/bp.nn.md", pageContent("s2.b3.bundlecontent.nn"))
+	b.WithContent("blog/sect2/b3/bp.nn.md", pageContent("s2.b3.bundlegetContent.nn"))
 
 	b.WithContent("blog/sect2/b4/index.nn.md", pageContent("s2.b4"))
-	b.WithContent("blog/sect2/b4/bp.nn.md", pageContent("s2.b4.bundlecontent.nn"))
+	b.WithContent("blog/sect2/b4/bp.nn.md", pageContent("s2.b4.bundlegetContent.nn"))
 
 	b.WithTemplates("index.html", `
 Num Pages: {{ len .Site.Pages }}
@@ -1162,15 +1162,15 @@ Num Pages: {{ len .Site.Pages }}
 	b.AssertFileContent("public/nn/index.html",
 		"Num Pages: 6",
 		"page|/nn/blog/sect1/b1/|Content: s1.b1.nn|Resources: R: data.json|s1.b1.data|",
-		"page|/nn/blog/sect2/b3/|Content: s2.b3|Resources: R: s2.b3.bundlecontent.nn|",
-		"page|/nn/blog/sect2/b4/|Content: s2.b4|Resources: R: s2.b4.bundlecontent.nn",
+		"page|/nn/blog/sect2/b3/|Content: s2.b3|Resources: R: s2.b3.bundlegetContent.nn|",
+		"page|/nn/blog/sect2/b4/|Content: s2.b4|Resources: R: s2.b4.bundlegetContent.nn",
 	)
 
 	b.AssertFileContent("public/en/index.html",
 		"Num Pages: 6",
 		"section|/en/blog/sect2/|Content: s2|Resources: R: data.json|s2.data|",
 		"page|/en/blog/sect2/b1/|Content: s2.b1|Resources: R: data.json|s2.b1.data|",
-		"page|/en/blog/sect2/b2/|Content: s2.b2|Resources: R: s2.b2.bundlecontent|",
+		"page|/en/blog/sect2/b2/|Content: s2.b2|Resources: R: s2.b2.bundlegetContent|",
 	)
 
 }

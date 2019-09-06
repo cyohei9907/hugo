@@ -51,9 +51,11 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/pflag v1.0.3
 	github.com/spf13/viper v1.4.0
+	github.com/starlight-go/starlight v0.0.0-20181207205707-b06f321544f3
 	github.com/tdewolff/minify/v2 v2.3.7
 	github.com/yosssi/ace v0.0.5
 	go.opencensus.io v0.22.0 // indirect
+	go.starlark.net v0.0.0-20190820173200-988906f77f65
 	gocloud.dev v0.15.0
 	golang.org/x/image v0.0.0-20190523035834-f03afa92d3ff
 	golang.org/x/net v0.0.0-20190606173856-1492cefac77f // indirect

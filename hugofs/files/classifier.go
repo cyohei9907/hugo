@@ -52,11 +52,16 @@ func IsContentExt(ext string) bool {
 const (
 	ContentClassLeaf    = "leaf"
 	ContentClassBranch  = "branch"
+	ContentClassPlugin    = "data"
 	ContentClassFile    = "zfile" // Sort below
 	ContentClassContent = "zcontent"
 )
 
 func ClassifyContentFile(filename string) string {
+	if strings.HasPrefix(filename, "_content.py") {
+		return ContentClassPlugin
+	}
+
 	if !IsContentFile(filename) {
 		return ContentClassFile
 	}

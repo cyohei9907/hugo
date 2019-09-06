@@ -83,14 +83,14 @@ func doTestMultiSitesMainLangInRoot(t *testing.T, defaultInSubDir bool) {
 		c.Assert(frRelPerm, qt.Equals, "/blog/fr/sect/doc1/")
 
 		// should have a redirect on top level.
-		b.AssertFileContent("public/index.html", `<meta http-equiv="refresh" content="0; url=http://example.com/blog/fr" />`)
+		b.AssertFileContent("public/index.html", `<meta http-equiv="refresh" getContent="0; url=http://example.com/blog/fr" />`)
 	} else {
 		// Main language in root
 		c.Assert(frPerm, qt.Equals, "http://example.com/blog/sect/doc1/")
 		c.Assert(frRelPerm, qt.Equals, "/blog/sect/doc1/")
 
 		// should have redirect back to root
-		b.AssertFileContent("public/fr/index.html", `<meta http-equiv="refresh" content="0; url=http://example.com/blog" />`)
+		b.AssertFileContent("public/fr/index.html", `<meta http-equiv="refresh" getContent="0; url=http://example.com/blog" />`)
 	}
 	b.AssertFileContent(pathMod("public/fr/index.html"), "Home", "Bonjour")
 	b.AssertFileContent("public/en/index.html", "Home", "Hello")
@@ -129,25 +129,25 @@ func doTestMultiSitesMainLangInRoot(t *testing.T, defaultInSubDir bool) {
 	b.AssertFileContent("public/en/tags/tag1/index.xml", `<atom:link href="http://example.com/blog/en/tags/tag1/index.xml"`)
 
 	// Check paginators
-	b.AssertFileContent(pathMod("public/fr/page/1/index.html"), pathMod(`refresh" content="0; url=http://example.com/blog/fr/"`))
-	b.AssertFileContent("public/en/page/1/index.html", `refresh" content="0; url=http://example.com/blog/en/"`)
+	b.AssertFileContent(pathMod("public/fr/page/1/index.html"), pathMod(`refresh" getContent="0; url=http://example.com/blog/fr/"`))
+	b.AssertFileContent("public/en/page/1/index.html", `refresh" getContent="0; url=http://example.com/blog/en/"`)
 	b.AssertFileContent(pathMod("public/fr/page/2/index.html"), "Home Page 2", "Bonjour", pathMod("http://example.com/blog/fr/"))
 	b.AssertFileContent("public/en/page/2/index.html", "Home Page 2", "Hello", "http://example.com/blog/en/")
-	b.AssertFileContent(pathMod("public/fr/sect/page/1/index.html"), pathMod(`refresh" content="0; url=http://example.com/blog/fr/sect/"`))
-	b.AssertFileContent("public/en/sect/page/1/index.html", `refresh" content="0; url=http://example.com/blog/en/sect/"`)
+	b.AssertFileContent(pathMod("public/fr/sect/page/1/index.html"), pathMod(`refresh" getContent="0; url=http://example.com/blog/fr/sect/"`))
+	b.AssertFileContent("public/en/sect/page/1/index.html", `refresh" getContent="0; url=http://example.com/blog/en/sect/"`)
 	b.AssertFileContent(pathMod("public/fr/sect/page/2/index.html"), "List Page 2", "Bonjour", pathMod("http://example.com/blog/fr/sect/"))
 	b.AssertFileContent("public/en/sect/page/2/index.html", "List Page 2", "Hello", "http://example.com/blog/en/sect/")
 	b.AssertFileContent(
 		pathMod("public/fr/plaques/FRtag1/page/1/index.html"),
-		pathMod(`refresh" content="0; url=http://example.com/blog/fr/plaques/FRtag1/"`))
-	b.AssertFileContent("public/en/tags/tag1/page/1/index.html", `refresh" content="0; url=http://example.com/blog/en/tags/tag1/"`)
+		pathMod(`refresh" getContent="0; url=http://example.com/blog/fr/plaques/FRtag1/"`))
+	b.AssertFileContent("public/en/tags/tag1/page/1/index.html", `refresh" getContent="0; url=http://example.com/blog/en/tags/tag1/"`)
 	b.AssertFileContent(
 		pathMod("public/fr/plaques/FRtag1/page/2/index.html"), "List Page 2", "Bonjour",
 		pathMod("http://example.com/blog/fr/plaques/FRtag1/"))
 	b.AssertFileContent("public/en/tags/tag1/page/2/index.html", "List Page 2", "Hello", "http://example.com/blog/en/tags/tag1/")
 	// nn (Nynorsk) and nb (Bokmål) have custom pagePath: side ("page" in Norwegian)
-	b.AssertFileContent("public/nn/side/1/index.html", `refresh" content="0; url=http://example.com/blog/nn/"`)
-	b.AssertFileContent("public/nb/side/1/index.html", `refresh" content="0; url=http://example.com/blog/nb/"`)
+	b.AssertFileContent("public/nn/side/1/index.html", `refresh" getContent="0; url=http://example.com/blog/nn/"`)
+	b.AssertFileContent("public/nb/side/1/index.html", `refresh" getContent="0; url=http://example.com/blog/nb/"`)
 }
 
 func TestMultiSitesWithTwoLanguages(t *testing.T) {
@@ -200,8 +200,8 @@ p1 = "p1en"
 func TestMultiSitesBuild(t *testing.T) {
 
 	for _, config := range []struct {
-		content string
-		suffix  string
+		getContent string
+		suffix     string
 	}{
 		{multiSiteTOMLConfigTemplate, "toml"},
 		{multiSiteYAMLConfigTemplate, "yml"},
@@ -210,7 +210,7 @@ func TestMultiSitesBuild(t *testing.T) {
 
 		t.Run(config.suffix, func(t *testing.T) {
 			t.Parallel()
-			doTestMultiSitesBuild(t, config.content, config.suffix)
+			doTestMultiSitesBuild(t, config.getContent, config.suffix)
 		})
 	}
 }
@@ -232,10 +232,10 @@ func doTestMultiSitesBuild(t *testing.T, configTemplate, configSuffix string) {
 		c.Assert(s.disabledKinds, qt.Not(qt.IsNil))
 	}
 
-	gp1 := b.H.GetContentPage(filepath.FromSlash("content/sect/doc1.en.md"))
+	gp1 := b.H.GetContentPage(filepath.FromSlash("getContent/sect/doc1.en.md"))
 	c.Assert(gp1, qt.Not(qt.IsNil))
 	c.Assert(gp1.Title(), qt.Equals, "doc1")
-	gp2 := b.H.GetContentPage(filepath.FromSlash("content/dummysect/notfound.md"))
+	gp2 := b.H.GetContentPage(filepath.FromSlash("getContent/dummysect/notfound.md"))
 	c.Assert(gp2, qt.IsNil)
 
 	enSite := sites[0]
@@ -293,7 +293,7 @@ func doTestMultiSitesBuild(t *testing.T, configTemplate, configSuffix string) {
 	}
 
 	// See https://github.com/gohugoio/hugo/issues/4285
-	// Before Hugo 0.33 you had to be explicit with the content path to get the correct Page, which
+	// Before Hugo 0.33 you had to be explicit with the getContent path to get the correct Page, which
 	// isn't ideal in a multilingual setup. You want a way to get the current language version if available.
 	// Now you can do lookups with translation base name to get that behaviour.
 	// Let us test all the regular page variants:
@@ -309,11 +309,11 @@ func doTestMultiSitesBuild(t *testing.T, configTemplate, configSuffix string) {
 	// Check redirect to main language, French
 	b.AssertFileContent("public/index.html", "0; url=http://example.com/blog/fr")
 
-	// check home page content (including data files rendering)
+	// check home page getContent (including data files rendering)
 	b.AssertFileContent("public/en/index.html", "Default Home Page 1", "Hello", "Hugo Rocks!")
 	b.AssertFileContent("public/fr/index.html", "French Home Page 1", "Bonjour", "Hugo Rocks!")
 
-	// check single page content
+	// check single page getContent
 	b.AssertFileContent("public/fr/sect/doc1/index.html", "Single", "Shortcode: Bonjour", "LingoFrench")
 	b.AssertFileContent("public/en/sect/doc1-slug/index.html", "Single", "Shortcode: Hello", "LingoDefault")
 
@@ -366,9 +366,9 @@ func doTestMultiSitesBuild(t *testing.T, configTemplate, configSuffix string) {
 	b.AssertFileContent("public/fr/plaques/FRtag1/index.html", "FRtag1|Bonjour|http://example.com/blog/fr/plaques/FRtag1/")
 
 	// Check Blackfriday config
-	c.Assert(strings.Contains(content(doc1fr), "&laquo;"), qt.Equals, true)
-	c.Assert(strings.Contains(content(doc1en), "&laquo;"), qt.Equals, false)
-	c.Assert(strings.Contains(content(doc1en), "&ldquo;"), qt.Equals, true)
+	c.Assert(strings.Contains(getContent(doc1fr), "&laquo;"), qt.Equals, true)
+	c.Assert(strings.Contains(getContent(doc1en), "&laquo;"), qt.Equals, false)
+	c.Assert(strings.Contains(getContent(doc1en), "&ldquo;"), qt.Equals, true)
 
 	// en and nn have custom site menus
 	c.Assert(len(frSite.Menus()), qt.Equals, 0)
@@ -426,7 +426,7 @@ func TestMultiSitesRebuild(t *testing.T) {
 	sites := b.H.Sites
 	fs := b.Fs
 
-	b.AssertFileContent("public/en/sect/doc2/index.html", "Single: doc2|Hello|en|", "\n\n<h1 id=\"doc2\">doc2</h1>\n\n<p><em>some content</em>")
+	b.AssertFileContent("public/en/sect/doc2/index.html", "Single: doc2|Hello|en|", "\n\n<h1 id=\"doc2\">doc2</h1>\n\n<p><em>some getContent</em>")
 
 	enSite := sites[0]
 	frSite := sites[1]
@@ -438,7 +438,7 @@ func TestMultiSitesRebuild(t *testing.T) {
 	b.AssertFileContent("public/en/sect/doc1-slug/index.html", "Hello")
 	b.AssertFileContent("public/fr/sect/doc1/index.html", "Bonjour")
 
-	// check single page content
+	// check single page getContent
 	b.AssertFileContent("public/fr/sect/doc1/index.html", "Single", "Shortcode: Bonjour")
 	b.AssertFileContent("public/en/sect/doc1-slug/index.html", "Single", "Shortcode: Hello")
 
@@ -446,7 +446,7 @@ func TestMultiSitesRebuild(t *testing.T) {
 	c.Assert(homeEn, qt.Not(qt.IsNil))
 	c.Assert(len(homeEn.Translations()), qt.Equals, 3)
 
-	contentFs := b.H.Fs.Source
+	getContentFs := b.H.Fs.Source
 
 	for i, this := range []struct {
 		preFunc    func(t *testing.T)
@@ -462,9 +462,9 @@ func TestMultiSitesRebuild(t *testing.T) {
 		// * Change language file
 		{
 			func(t *testing.T) {
-				fs.Source.Remove("content/sect/doc2.en.md")
+				fs.Source.Remove("getContent/sect/doc2.en.md")
 			},
-			[]fsnotify.Event{{Name: filepath.FromSlash("content/sect/doc2.en.md"), Op: fsnotify.Remove}},
+			[]fsnotify.Event{{Name: filepath.FromSlash("getContent/sect/doc2.en.md"), Op: fsnotify.Remove}},
 			func(t *testing.T) {
 				c.Assert(len(enSite.RegularPages()), qt.Equals, 4, qt.Commentf("1 en removed"))
 
@@ -472,14 +472,14 @@ func TestMultiSitesRebuild(t *testing.T) {
 		},
 		{
 			func(t *testing.T) {
-				writeNewContentFile(t, contentFs, "new_en_1", "2016-07-31", "content/new1.en.md", -5)
-				writeNewContentFile(t, contentFs, "new_en_2", "1989-07-30", "content/new2.en.md", -10)
-				writeNewContentFile(t, contentFs, "new_fr_1", "2016-07-30", "content/new1.fr.md", 10)
+				writeNewContentFile(t, getContentFs, "new_en_1", "2016-07-31", "getContent/new1.en.md", -5)
+				writeNewContentFile(t, getContentFs, "new_en_2", "1989-07-30", "getContent/new2.en.md", -10)
+				writeNewContentFile(t, getContentFs, "new_fr_1", "2016-07-30", "getContent/new1.fr.md", 10)
 			},
 			[]fsnotify.Event{
-				{Name: filepath.FromSlash("content/new1.en.md"), Op: fsnotify.Create},
-				{Name: filepath.FromSlash("content/new2.en.md"), Op: fsnotify.Create},
-				{Name: filepath.FromSlash("content/new1.fr.md"), Op: fsnotify.Create},
+				{Name: filepath.FromSlash("getContent/new1.en.md"), Op: fsnotify.Create},
+				{Name: filepath.FromSlash("getContent/new2.en.md"), Op: fsnotify.Create},
+				{Name: filepath.FromSlash("getContent/new1.fr.md"), Op: fsnotify.Create},
 			},
 			func(t *testing.T) {
 				c.Assert(len(enSite.RegularPages()), qt.Equals, 6)
@@ -495,12 +495,12 @@ func TestMultiSitesRebuild(t *testing.T) {
 		},
 		{
 			func(t *testing.T) {
-				p := "content/sect/doc1.en.md"
-				doc1 := readFileFromFs(t, contentFs, p)
+				p := "getContent/sect/doc1.en.md"
+				doc1 := readFileFromFs(t, getContentFs, p)
 				doc1 += "CHANGED"
-				writeToFs(t, contentFs, p, doc1)
+				writeToFs(t, getContentFs, p, doc1)
 			},
-			[]fsnotify.Event{{Name: filepath.FromSlash("content/sect/doc1.en.md"), Op: fsnotify.Write}},
+			[]fsnotify.Event{{Name: filepath.FromSlash("getContent/sect/doc1.en.md"), Op: fsnotify.Write}},
 			func(t *testing.T) {
 				c.Assert(len(enSite.RegularPages()), qt.Equals, 6)
 				doc1 := readDestination(t, fs, "public/en/sect/doc1-slug/index.html")
@@ -511,13 +511,13 @@ func TestMultiSitesRebuild(t *testing.T) {
 		// Rename a file
 		{
 			func(t *testing.T) {
-				if err := contentFs.Rename("content/new1.en.md", "content/new1renamed.en.md"); err != nil {
+				if err := getContentFs.Rename("getContent/new1.en.md", "getContent/new1renamed.en.md"); err != nil {
 					t.Fatalf("Rename failed: %s", err)
 				}
 			},
 			[]fsnotify.Event{
-				{Name: filepath.FromSlash("content/new1renamed.en.md"), Op: fsnotify.Rename},
-				{Name: filepath.FromSlash("content/new1.en.md"), Op: fsnotify.Rename},
+				{Name: filepath.FromSlash("getContent/new1renamed.en.md"), Op: fsnotify.Rename},
+				{Name: filepath.FromSlash("getContent/new1.en.md"), Op: fsnotify.Rename},
 			},
 			func(t *testing.T) {
 				c.Assert(len(enSite.RegularPages()), qt.Equals, 6, qt.Commentf("Rename"))
@@ -606,7 +606,7 @@ func TestContentStressTest(t *testing.T) {
 
 	numPages := 500
 
-	contentTempl := `
+	getContentTempl := `
 ---
 %s
 title: %q
@@ -621,7 +621,7 @@ CONTENT
 The End.
 `
 
-	contentTempl = strings.Replace(contentTempl, "CONTENT", strings.Repeat(`
+	getContentTempl = strings.Replace(getContentTempl, "CONTENT", strings.Repeat(`
 	
 ## Another header
 
@@ -629,7 +629,7 @@ Some text. Some more text.
 
 `, 100), -1)
 
-	var content []string
+	var getContent []string
 	defaultOutputs := `outputs: ["html", "json", "rss" ]`
 
 	for i := 1; i <= numPages; i++ {
@@ -643,12 +643,12 @@ Some text. Some more text.
 		if i%10 == 0 {
 			section = "s2"
 		}
-		content = append(content, []string{fmt.Sprintf("%s/page%d.md", section, i), fmt.Sprintf(contentTempl, outputs, fmt.Sprintf("Title %d", i), i, multioutput)}...)
+		getContent = append(getContent, []string{fmt.Sprintf("%s/page%d.md", section, i), fmt.Sprintf(getContentTempl, outputs, fmt.Sprintf("Title %d", i), i, multioutput)}...)
 	}
 
-	content = append(content, []string{"_index.md", fmt.Sprintf(contentTempl, defaultOutputs, fmt.Sprintf("Home %d", 0), 0, true)}...)
-	content = append(content, []string{"s1/_index.md", fmt.Sprintf(contentTempl, defaultOutputs, fmt.Sprintf("S %d", 1), 1, true)}...)
-	content = append(content, []string{"s2/_index.md", fmt.Sprintf(contentTempl, defaultOutputs, fmt.Sprintf("S %d", 2), 2, true)}...)
+	getContent = append(getContent, []string{"_index.md", fmt.Sprintf(getContentTempl, defaultOutputs, fmt.Sprintf("Home %d", 0), 0, true)}...)
+	getContent = append(getContent, []string{"s1/_index.md", fmt.Sprintf(getContentTempl, defaultOutputs, fmt.Sprintf("S %d", 1), 1, true)}...)
+	getContent = append(getContent, []string{"s2/_index.md", fmt.Sprintf(getContentTempl, defaultOutputs, fmt.Sprintf("S %d", 2), 2, true)}...)
 
 	b.WithSimpleConfigFile()
 	b.WithTemplates("layouts/_default/single.html", `Single: {{ .Content }}|RelPermalink: {{ .RelPermalink }}|Permalink: {{ .Permalink }}`)
@@ -667,11 +667,11 @@ Render {{ $i }}: {{ .Render "myview" }}
 END
 `)
 
-	b.WithContent(content...)
+	b.WithContent(getContent...)
 
 	b.CreateSites().Build(BuildCfg{})
 
-	contentMatchers := []string{"<h2 id=\"another-header\">Another header</h2>", "<h2 id=\"another-header-99\">Another header</h2>", "<p>The End.</p>"}
+	getContentMatchers := []string{"<h2 id=\"another-header\">Another header</h2>", "<h2 id=\"another-header-99\">Another header</h2>", "<p>The End.</p>"}
 
 	for i := 1; i <= numPages; i++ {
 		if i%3 != 0 {
@@ -679,7 +679,7 @@ END
 			if i%10 == 0 {
 				section = "s2"
 			}
-			checkContent(b, fmt.Sprintf("public/%s/page%d/index.html", section, i), contentMatchers...)
+			checkContent(b, fmt.Sprintf("public/%s/page%d/index.html", section, i), getContentMatchers...)
 		}
 	}
 
@@ -688,7 +688,7 @@ END
 		if i%10 == 0 {
 			section = "s2"
 		}
-		checkContent(b, fmt.Sprintf("public/%s/page%d/index.json", section, i), contentMatchers...)
+		checkContent(b, fmt.Sprintf("public/%s/page%d/index.json", section, i), getContentMatchers...)
 	}
 
 	checkContent(b, "public/s1/index.html", "P: s1/_index.md\nList: 10|List Content: 8335\n\n\nL1: 500 L2: 5\n\nRender 0: View: 8335\n\nRender 1: View: 8335\n\nRender 2: View: 8335\n\nRender 3: View: 8335\n\nRender 4: View: 8335\n\nEND\n")
@@ -703,10 +703,10 @@ END
 
 func checkContent(s *sitesBuilder, filename string, matches ...string) {
 	s.T.Helper()
-	content := readDestination(s.T, s.Fs, filename)
+	getContent := readDestination(s.T, s.Fs, filename)
 	for _, match := range matches {
-		if !strings.Contains(content, match) {
-			s.Fatalf("No match for %q in content for %s\n%q", match, filename, content)
+		if !strings.Contains(getContent, match) {
+			s.Fatalf("No match for %q in getContent for %s\n%q", match, filename, getContent)
 		}
 	}
 }
@@ -722,10 +722,10 @@ defaultContentLanguage = "en"
 [languages]
 [languages.en]
 weight = 10
-contentDir = "content/en"
+getContentDir = "getContent/en"
 [languages.nn]
 weight = 20
-contentDir = "content/nn"
+getContentDir = "getContent/nn"
 
 
 `)
@@ -853,11 +853,11 @@ func TestSelfReferencedContentInShortcode(t *testing.T) {
 		page = `---
 title: sctest
 ---
-Empty:{{< mycontent >}}:
+Empty:{{< mygetContent >}}:
 `
 	)
 
-	b.WithTemplatesAdded("layouts/shortcodes/mycontent.html", shortcode)
+	b.WithTemplatesAdded("layouts/shortcodes/mygetContent.html", shortcode)
 	b.WithContent("post/simple.en.md", page)
 
 	b.CreateSites().Build(BuildCfg{})
@@ -1156,14 +1156,14 @@ var multiSiteJSONConfigTemplate = `
 }
 `
 
-func writeSource(t testing.TB, fs *hugofs.Fs, filename, content string) {
+func writeSource(t testing.TB, fs *hugofs.Fs, filename, getContent string) {
 	t.Helper()
-	writeToFs(t, fs.Source, filename, content)
+	writeToFs(t, fs.Source, filename, getContent)
 }
 
-func writeToFs(t testing.TB, fs afero.Fs, filename, content string) {
+func writeToFs(t testing.TB, fs afero.Fs, filename, getContent string) {
 	t.Helper()
-	if err := afero.WriteFile(fs, filepath.FromSlash(filename), []byte(content), 0755); err != nil {
+	if err := afero.WriteFile(fs, filepath.FromSlash(filename), []byte(getContent), 0755); err != nil {
 		t.Fatalf("Failed to write file: %s", err)
 	}
 }
@@ -1230,8 +1230,8 @@ func newTestPage(title, date string, weight int) string {
 }
 
 func writeNewContentFile(t *testing.T, fs afero.Fs, title, date, filename string, weight int) {
-	content := newTestPage(title, date, weight)
-	writeToFs(t, fs, filename, content)
+	getContent := newTestPage(title, date, weight)
+	writeToFs(t, fs, filename, getContent)
 }
 
 type multiSiteTestBuilder struct {
@@ -1290,7 +1290,7 @@ tags:
 publishdate: "2000-01-01"
 ---
 # doc1
-*some "content"*
+*some "getContent"*
 
 {{< shortcode >}}
 
@@ -1322,7 +1322,7 @@ weight: 2
 publishdate: "2000-01-02"
 ---
 # doc2
-*some content*
+*some getContent*
 NOTE: without slug, "doc2" should be used, without ".en" as URL
 `,
 		"sect/doc3.en.md", `---
@@ -1336,7 +1336,7 @@ tags:
 url: /superbob/
 ---
 # doc3
-*some content*
+*some getContent*
 NOTE: third 'en' doc, should trigger pagination on home page.
 `,
 		"sect/doc4.md", `---

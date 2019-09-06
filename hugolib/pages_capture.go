@@ -16,10 +16,17 @@ package hugolib
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	pth "path"
 	"path/filepath"
 	"strings"
+
+	"github.com/gohugoio/hugo/plugins/content"
+
+	"github.com/gohugoio/hugo/resources/page"
+
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/gohugoio/hugo/config"
 
@@ -631,6 +638,73 @@ func (proc *pagesProcessor) newPageFromBundle(b *fileinfoBundle) (*pageState, er
 	return p, nil
 }
 
+func (proc *pagesProcessor) newPagesFromPlugin(fim hugofs.FileMetaInfo, send func(p *pageState, err error)) {
+
+	meta := fim.Meta()
+	f, err := meta.Open()
+	if err != nil {
+		send(nil, err)
+		return
+	}
+	defer f.Close()
+
+	sourcePlugin, err := content.EvalSourcePlugin(f)
+	if err != nil {
+		send(nil, err)
+		return
+	}
+
+	// TODO1
+	s := proc.getSite(meta.Lang())
+
+	var contentReader io.ReadCloser
+
+	switch sourcePlugin := sourcePlugin.(type) {
+	case content.SourcePluginFiles:
+		filenames := sourcePlugin.GetFilenames()
+		readClosers := make([]io.ReadCloser, len(filenames))
+		for i, filename := range filenames {
+			readClosers[i], err = s.BaseFs.Assets.Fs.Open(filepath.Clean(filename))
+			if err != nil {
+				send(nil, err)
+				return
+			}
+		}
+
+		contentReader = hugio.NewMultiReadCloser(readClosers...)
+
+	case content.SourcePluginStream:
+		contentReader, err = sourcePlugin.GetStream().OpenReadCloser()
+		if err != nil {
+			send(nil, err)
+			return
+		}
+	default:
+		send(nil, errors.Errorf("unknown plugin type %T", sourcePlugin))
+		return
+	}
+
+	defer contentReader.Close()
+
+	dec := yaml.NewDecoder(contentReader)
+	for {
+		m := make(map[string]interface{})
+		if err := dec.Decode(m); err != nil {
+			if err == io.EOF {
+				break
+			}
+			send(nil, err)
+			return
+		}
+
+		send(newPageFromMeta(m, &pageMeta{
+			kind: page.KindPage,
+			s:    s,
+		}))
+
+	}
+}
+
 func (proc *pagesProcessor) newPageFromFi(fim hugofs.FileMetaInfo, owner *pageState) (*pageState, error) {
 	fi, err := newFileInfo(proc.sp, fim)
 	if err != nil {
@@ -753,6 +827,8 @@ func (proc *pagesProcessor) process(item interface{}) error {
 			send(proc.newPageFromFi(v, nil))
 		case files.ContentClassFile:
 			proc.sendError(proc.copyFile(v))
+		case files.ContentClassPlugin:
+			proc.newPagesFromPlugin(v, send)
 		default:
 			panic(fmt.Sprintf("invalid classifier: %q", classifier))
 		}

@@ -258,19 +258,15 @@ func (p *pageMeta) Section() string {
 		return ""
 	}
 
-	if p.IsNode() {
-		if len(p.sections) == 0 {
-			// May be a sitemap or similar.
-			return ""
-		}
-		return p.sections[0]
-	}
-
-	if !p.File().IsZero() {
+	if p.IsPage() && !p.File().IsZero() {
 		return p.File().Section()
 	}
 
-	panic("invalid page state")
+	if len(p.sections) == 0 {
+		// May be a sitemap or similar.
+		return ""
+	}
+	return p.sections[0]
 
 }
 

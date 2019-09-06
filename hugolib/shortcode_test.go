@@ -43,12 +43,12 @@ func CheckShortCodeMatchAndError(t *testing.T, input, expected string, withTempl
 	c := qt.New(t)
 
 	// Need some front matter, see https://github.com/gohugoio/hugo/issues/2337
-	contentFile := `---
+	getContentFile := `---
 title: "Title"
 ---
 ` + input
 
-	writeSource(t, fs, "content/simple.md", contentFile)
+	writeSource(t, fs, "getContent/simple.md", getContentFile)
 
 	b := newTestSitesBuilderFromDepsCfg(t, deps.DepsCfg{Fs: fs, Cfg: cfg, WithTemplate: withTemplate}).WithNothingAdded()
 	err := b.BuildE(BuildCfg{})
@@ -66,7 +66,7 @@ title: "Title"
 
 	c.Assert(len(h.Sites[0].RegularPages()), qt.Equals, 1)
 
-	output := strings.TrimSpace(content(h.Sites[0].RegularPages()[0]))
+	output := strings.TrimSpace(getContent(h.Sites[0].RegularPages()[0]))
 	output = strings.TrimPrefix(output, "<p>")
 	output = strings.TrimSuffix(output, "</p>")
 
@@ -151,7 +151,7 @@ func TestShortcodeInnerMarkup(t *testing.T) {
 	CheckShortCodeMatch(t,
 		"{{< a >}}B: <div>{{% b %}}**Bold**{{% /b %}}</div>{{< /a >}}",
 		// This assertion looks odd, but is correct: for inner shortcodes with
-		// the {{% we treats the .Inner content as markup, but not the shortcode
+		// the {{% we treats the .Inner getContent as markup, but not the shortcode
 		// itself.
 		"<div>B: <div>**Bold**: <div><strong>Bold</strong></div></div></div>",
 		wt)
@@ -219,7 +219,7 @@ func TestInnerSC(t *testing.T) {
 func TestInnerSCWithMarkdown(t *testing.T) {
 	t.Parallel()
 	wt := func(tem tpl.TemplateHandler) error {
-		// Note: In Hugo 0.55 we made it so any outer {{%'s inner content was rendered as part of the surrounding
+		// Note: In Hugo 0.55 we made it so any outer {{%'s inner getContent was rendered as part of the surrounding
 		// markup. This solved lots of problems, but it also meant that this test had to be adjusted.
 		tem.AddTemplate("_internal/shortcodes/wrapper.html", `<div{{with .Get "class"}} class="{{.}}"{{end}}>{{ .Inner }}</div>`)
 		tem.AddTemplate("_internal/shortcodes/inside.html", `{{ .Inner }}`)
@@ -403,7 +403,7 @@ title: "Shortcodes Galore!"
 			regexpCheck("inner;.*inner:{Inner Content->.*Inner close->}")},
 		{"nested, nested inner", `{{< inner >}}inner2->{{% inner2 param1 %}}inner2txt->inner3{{< inner3>}}inner3txt{{</ inner3 >}}{{% /inner2 %}}final close->{{< / inner >}}`,
 			regexpCheck("inner:{inner2-> inner2.*{{inner2txt->inner3.*final close->}")},
-		{"closed without content", `{{< inner param1 >}}{{< / inner >}}`, regexpCheck("inner.*inner:{}")},
+		{"closed without getContent", `{{< inner param1 >}}{{< / inner >}}`, regexpCheck("inner.*inner:{}")},
 		{"inline", `{{< my.inline >}}Hi{{< /my.inline >}}`, regexpCheck("my.inline;inline:true;closing:true;inner:{Hi};")},
 	} {
 
@@ -437,10 +437,10 @@ func TestShortcodesInSite(t *testing.T) {
 	baseURL := "http://foo/bar"
 
 	tests := []struct {
-		contentPath string
-		content     string
-		outFile     string
-		expected    interface{}
+		getContentPath string
+		getContent     string
+		outFile        string
+		expected       interface{}
 	}{
 		{"sect/doc1.md", `a{{< b >}}c`,
 			filepath.FromSlash("public/sect/doc1/index.html"), "<p>abc</p>\n"},
@@ -539,7 +539,7 @@ title: "Foo"
 	sources := make([][2]string, len(tests))
 
 	for i, test := range tests {
-		sources[i] = [2]string{filepath.FromSlash(test.contentPath), test.content}
+		sources[i] = [2]string{filepath.FromSlash(test.getContentPath), test.getContent}
 	}
 
 	addTemplates := func(templ tpl.TemplateHandler) error {
@@ -568,17 +568,17 @@ title: "Foo"
 	cfg.Set("pygmentsUseClasses", true)
 	cfg.Set("pygmentsCodefences", true)
 
-	writeSourcesToSource(t, "content", fs, sources...)
+	writeSourcesToSource(t, "getContent", fs, sources...)
 
 	s := buildSingleSite(t, deps.DepsCfg{WithTemplate: addTemplates, Fs: fs, Cfg: cfg}, BuildCfg{})
 
 	for i, test := range tests {
 		test := test
-		t.Run(fmt.Sprintf("test=%d;contentPath=%s", i, test.contentPath), func(t *testing.T) {
+		t.Run(fmt.Sprintf("test=%d;getContentPath=%s", i, test.getContentPath), func(t *testing.T) {
 			t.Parallel()
-			if strings.HasSuffix(test.contentPath, ".ad") && !helpers.HasAsciidoc() {
+			if strings.HasSuffix(test.getContentPath, ".ad") && !helpers.HasAsciidoc() {
 				t.Skip("Skip Asciidoc test case as no Asciidoc present.")
-			} else if strings.HasSuffix(test.contentPath, ".rst") && !helpers.HasRst() {
+			} else if strings.HasSuffix(test.getContentPath, ".rst") && !helpers.HasRst() {
 				t.Skip("Skip Rst test case as no rst2html present.")
 			}
 
@@ -828,7 +828,7 @@ func TestReplaceShortcodeTokens(t *testing.T) {
 func TestShortcodeGetContent(t *testing.T) {
 	t.Parallel()
 
-	contentShortcode := `
+	getContentShortcode := `
 {{- $t := .Get 0 -}}
 {{- $p := .Get 1 -}}
 {{- $k := .Get 2 -}}
@@ -845,9 +845,9 @@ func TestShortcodeGetContent(t *testing.T) {
 `
 
 	var templates []string
-	var content []string
+	var getContent []string
 
-	contentWithShortcodeTemplate := `---
+	getContentWithShortcodeTemplate := `---
 title: doc%s
 weight: %d
 ---
@@ -859,23 +859,23 @@ weight: %d
 ---
 C-%s`
 
-	templates = append(templates, []string{"shortcodes/c.html", contentShortcode}...)
+	templates = append(templates, []string{"shortcodes/c.html", getContentShortcode}...)
 	templates = append(templates, []string{"_default/single.html", "Single Content: {{ .Content }}"}...)
 	templates = append(templates, []string{"_default/list.html", "List Content: {{ .Content }}"}...)
 
-	content = append(content, []string{"b1/index.md", fmt.Sprintf(contentWithShortcodeTemplate, "b1", 1)}...)
-	content = append(content, []string{"b1/logo.png", "PNG logo"}...)
-	content = append(content, []string{"b1/bp1.md", fmt.Sprintf(simpleContentTemplate, "bp1", 1, "bp1")}...)
+	getContent = append(getContent, []string{"b1/index.md", fmt.Sprintf(getContentWithShortcodeTemplate, "b1", 1)}...)
+	getContent = append(getContent, []string{"b1/logo.png", "PNG logo"}...)
+	getContent = append(getContent, []string{"b1/bp1.md", fmt.Sprintf(simpleContentTemplate, "bp1", 1, "bp1")}...)
 
-	content = append(content, []string{"section1/_index.md", fmt.Sprintf(contentWithShortcodeTemplate, "s1", 2)}...)
-	content = append(content, []string{"section1/p1.md", fmt.Sprintf(simpleContentTemplate, "s1p1", 2, "s1p1")}...)
+	getContent = append(getContent, []string{"section1/_index.md", fmt.Sprintf(getContentWithShortcodeTemplate, "s1", 2)}...)
+	getContent = append(getContent, []string{"section1/p1.md", fmt.Sprintf(simpleContentTemplate, "s1p1", 2, "s1p1")}...)
 
-	content = append(content, []string{"section2/_index.md", fmt.Sprintf(simpleContentTemplate, "b1", 1, "b1")}...)
-	content = append(content, []string{"section2/s2p1.md", fmt.Sprintf(contentWithShortcodeTemplate, "bp1", 1)}...)
+	getContent = append(getContent, []string{"section2/_index.md", fmt.Sprintf(simpleContentTemplate, "b1", 1, "b1")}...)
+	getContent = append(getContent, []string{"section2/s2p1.md", fmt.Sprintf(getContentWithShortcodeTemplate, "bp1", 1)}...)
 
 	builder := newTestSitesBuilder(t).WithDefaultMultiSiteConfig()
 
-	builder.WithContent(content...).WithTemplates(templates...).CreateSites().Build(BuildCfg{})
+	builder.WithContent(getContent...).WithTemplates(templates...).CreateSites().Build(BuildCfg{})
 	s := builder.H.Sites[0]
 	builder.Assert(len(s.RegularPages()), qt.Equals, 3)
 
@@ -947,7 +947,7 @@ SHORTCODE: {{< c >}}
 
 	assert()
 
-	b.EditFiles("content/b1/index.md", pageContent+" Edit.")
+	b.EditFiles("getContent/b1/index.md", pageContent+" Edit.")
 
 	b.Build(BuildCfg{})
 
@@ -959,7 +959,7 @@ func TestShortcodePreserveOrder(t *testing.T) {
 	t.Parallel()
 	c := qt.New(t)
 
-	contentTemplate := `---
+	getContentTemplate := `---
 title: doc%d
 weight: %d
 ---
@@ -982,7 +982,7 @@ weight: %d
 	shortcodeTemplate := `v%d: {{ .Ordinal }} sgo: {{ .Page.Scratch.Get "o2" }}{{ .Page.Scratch.Set "o2" .Ordinal }}|`
 
 	var shortcodes []string
-	var content []string
+	var getContent []string
 
 	shortcodes = append(shortcodes, []string{"shortcodes/nested.html", nestedShortcode}...)
 	shortcodes = append(shortcodes, []string{"shortcodes/ordinal.html", ordinalShortcodeTemplate}...)
@@ -995,12 +995,12 @@ weight: %d
 	}
 
 	for i := 1; i <= 3; i++ {
-		content = append(content, []string{fmt.Sprintf("p%d.md", i), fmt.Sprintf(contentTemplate, i, i)}...)
+		getContent = append(getContent, []string{fmt.Sprintf("p%d.md", i), fmt.Sprintf(getContentTemplate, i, i)}...)
 	}
 
 	builder := newTestSitesBuilder(t).WithDefaultMultiSiteConfig()
 
-	builder.WithContent(content...).WithTemplatesAdded(shortcodes...).CreateSites().Build(BuildCfg{})
+	builder.WithContent(getContent...).WithTemplatesAdded(shortcodes...).CreateSites().Build(BuildCfg{})
 
 	s := builder.H.Sites[0]
 	c.Assert(len(s.RegularPages()), qt.Equals, 3)
@@ -1043,9 +1043,9 @@ String: {{ . | safeHTML }}
 	c.Assert(len(s.RegularPages()), qt.Equals, 1)
 
 	builder.AssertFileContent("public/page/index.html",
-		filepath.FromSlash("File: content/page.md"),
+		filepath.FromSlash("File: getContent/page.md"),
 		"Line: 7", "Column: 4", "Offset: 40",
-		filepath.FromSlash("String: \"content/page.md:7:4\""),
+		filepath.FromSlash("String: \"getContent/page.md:7:4\""),
 		"Name: s1",
 	)
 

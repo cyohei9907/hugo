@@ -43,7 +43,7 @@ const (
 	homePage   = "---\ntitle: Home\n---\nHome Page Content\n"
 	simplePage = "---\ntitle: Simple\n---\nSimple Page\n"
 
-	simplePageRFC3339Date = "---\ntitle: RFC3339 Date\ndate: \"2013-05-17T16:59:30Z\"\n---\nrfc3339 content"
+	simplePageRFC3339Date = "---\ntitle: RFC3339 Date\ndate: \"2013-05-17T16:59:30Z\"\n---\nrfc3339 getContent"
 
 	simplePageWithoutSummaryDelimiter = `---
 title: SimpleWithoutSummaryDelimiter
@@ -303,9 +303,9 @@ func checkPageTitle(t *testing.T, page page.Page, title string) {
 func checkPageContent(t *testing.T, page page.Page, expected string, msg ...interface{}) {
 	t.Helper()
 	a := normalizeContent(expected)
-	b := normalizeContent(content(page))
+	b := normalizeContent(getContent(page))
 	if a != b {
-		t.Fatalf("Page content is:\n%q\nExpected:\n%q (%q)", b, a, msg)
+		t.Fatalf("Page getContent is:\n%q\nExpected:\n%q (%q)", b, a, msg)
 	}
 }
 
@@ -395,10 +395,10 @@ func testAllMarkdownEnginesForPages(t *testing.T,
 
 		})
 
-		contentDir := "content"
+		getContentDir := "getContent"
 
-		if s := cfg.GetString("contentDir"); s != "" {
-			contentDir = s
+		if s := cfg.GetString("getContentDir"); s != "" {
+			getContentDir = s
 		}
 
 		var fileSourcePairs []string
@@ -408,12 +408,12 @@ func testAllMarkdownEnginesForPages(t *testing.T,
 		}
 
 		for i := 0; i < len(fileSourcePairs); i += 2 {
-			writeSource(t, fs, filepath.Join(contentDir, fileSourcePairs[i]), fileSourcePairs[i+1])
+			writeSource(t, fs, filepath.Join(getContentDir, fileSourcePairs[i]), fileSourcePairs[i+1])
 		}
 
-		// Add a content page for the home page
+		// Add a getContent page for the home page
 		homePath := fmt.Sprintf("_index.%s", e.ext)
-		writeSource(t, fs, filepath.Join(contentDir, homePath), homePage)
+		writeSource(t, fs, filepath.Join(getContentDir, homePath), homePage)
 
 		b := newTestSitesBuilderFromDepsCfg(t, deps.DepsCfg{Fs: fs, Cfg: cfg}).WithNothingAdded()
 		b.Build(BuildCfg{SkipRender: true})
@@ -428,7 +428,7 @@ func testAllMarkdownEnginesForPages(t *testing.T,
 		b.Assert(err, qt.IsNil)
 		b.Assert(home, qt.Not(qt.IsNil))
 		b.Assert(home.File().Path(), qt.Equals, homePath)
-		b.Assert(content(home), qt.Contains, "Home Page Content")
+		b.Assert(getContent(home), qt.Contains, "Home Page Content")
 
 	}
 
@@ -440,7 +440,7 @@ func TestPageWithDelimiterForMarkdownThatCrossesBorder(t *testing.T) {
 	cfg, fs := newTestCfg()
 	c := qt.New(t)
 
-	writeSource(t, fs, filepath.Join("content", "simple.md"), simplePageWithSummaryDelimiterAndMarkdownThatCrossesBorder)
+	writeSource(t, fs, filepath.Join("getContent", "simple.md"), simplePageWithSummaryDelimiterAndMarkdownThatCrossesBorder)
 
 	s := buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg}, BuildCfg{SkipRender: true})
 
@@ -453,9 +453,9 @@ func TestPageWithDelimiterForMarkdownThatCrossesBorder(t *testing.T) {
 		t.Fatalf("Got summary:\n%q", p.Summary())
 	}
 
-	cnt := content(p)
+	cnt := getContent(p)
 	if cnt != "<p>The <a href=\"http://gohugo.io/\">best static site generator</a>.<sup class=\"footnote-ref\" id=\"fnref:1\"><a href=\"#fn:1\">1</a></sup></p>\n\n<div class=\"footnotes\">\n\n<hr />\n\n<ol>\n<li id=\"fn:1\">Many people say so.\n <a class=\"footnote-return\" href=\"#fnref:1\"><sup>[return]</sup></a></li>\n</ol>\n</div>" {
-		t.Fatalf("Got content:\n%q", cnt)
+		t.Fatalf("Got getContent:\n%q", cnt)
 	}
 }
 
@@ -536,7 +536,7 @@ func TestCreateNewPage(t *testing.T) {
 	assertFunc := func(t *testing.T, ext string, pages page.Pages) {
 		p := pages[0]
 
-		// issue #2290: Path is relative to the content dir and will continue to be so.
+		// issue #2290: Path is relative to the getContent dir and will continue to be so.
 		c.Assert(p.File().Path(), qt.Equals, fmt.Sprintf("p0.%s", ext))
 		c.Assert(p.IsHome(), qt.Equals, false)
 		checkPageTitle(t, p, "Simple")
@@ -546,7 +546,7 @@ func TestCreateNewPage(t *testing.T) {
 	}
 
 	settings := map[string]interface{}{
-		"contentDir": "mycontent",
+		"getContentDir": "mygetContent",
 	}
 
 	testAllMarkdownEnginesForPages(t, assertFunc, settings, simplePage)
@@ -640,7 +640,7 @@ func TestPageRawContent(t *testing.T) {
 	cfg, fs := newTestCfg()
 	c := qt.New(t)
 
-	writeSource(t, fs, filepath.Join("content", "raw.md"), `---
+	writeSource(t, fs, filepath.Join("getContent", "raw.md"), `---
 title: Raw
 ---
 **Raw**`)
@@ -688,7 +688,7 @@ func TestPageWithAdditionalExtension(t *testing.T) {
 	cfg, fs := newTestCfg()
 	c := qt.New(t)
 
-	writeSource(t, fs, filepath.Join("content", "simple.md"), simplePageWithAdditionalExtension)
+	writeSource(t, fs, filepath.Join("getContent", "simple.md"), simplePageWithAdditionalExtension)
 
 	s := buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg}, BuildCfg{SkipRender: true})
 
@@ -704,7 +704,7 @@ func TestTableOfContents(t *testing.T) {
 	cfg, fs := newTestCfg()
 	c := qt.New(t)
 
-	writeSource(t, fs, filepath.Join("content", "tocpage.md"), pageWithToC)
+	writeSource(t, fs, filepath.Join("getContent", "tocpage.md"), pageWithToC)
 
 	s := buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg}, BuildCfg{SkipRender: true})
 
@@ -760,7 +760,7 @@ func TestPageWithDate(t *testing.T) {
 	cfg, fs := newTestCfg()
 	c := qt.New(t)
 
-	writeSource(t, fs, filepath.Join("content", "simple.md"), simplePageRFC3339Date)
+	writeSource(t, fs, filepath.Join("getContent", "simple.md"), simplePageRFC3339Date)
 
 	s := buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg}, BuildCfg{SkipRender: true})
 
@@ -790,14 +790,14 @@ func TestPageWithLastmodFromGitInfo(t *testing.T) {
 
 	langConfig := map[string]interface{}{
 		"en": map[string]interface{}{
-			"weight":       1,
-			"languageName": "English",
-			"contentDir":   "content",
+			"weight":        1,
+			"languageName":  "English",
+			"getContentDir": "getContent",
 		},
 		"nn": map[string]interface{}{
-			"weight":       2,
-			"languageName": "Nynorsk",
-			"contentDir":   "content_nn",
+			"weight":        2,
+			"languageName":  "Nynorsk",
+			"getContentDir": "getContent_nn",
 		},
 	}
 
@@ -816,13 +816,13 @@ func TestPageWithLastmodFromGitInfo(t *testing.T) {
 	enSite := h.Sites[0]
 	c.Assert(len(enSite.RegularPages()), qt.Equals, 1)
 
-	// 2018-03-11 is the Git author date for testsite/content/first-post.md
+	// 2018-03-11 is the Git author date for testsite/getContent/first-post.md
 	c.Assert(enSite.RegularPages()[0].Lastmod().Format("2006-01-02"), qt.Equals, "2018-03-11")
 
 	nnSite := h.Sites[1]
 	c.Assert(len(nnSite.RegularPages()), qt.Equals, 1)
 
-	// 2018-08-11 is the Git author date for testsite/content_nn/first-post.md
+	// 2018-08-11 is the Git author date for testsite/getContent_nn/first-post.md
 	c.Assert(nnSite.RegularPages()[0].Lastmod().Format("2006-01-02"), qt.Equals, "2018-08-11")
 
 }
@@ -849,8 +849,8 @@ Content
 				"date": []string{dateHandler, "date"},
 			})
 
-			c1 := filepath.Join("content", "section", "2012-02-21-noslug.md")
-			c2 := filepath.Join("content", "section", "2012-02-22-slug.md")
+			c1 := filepath.Join("getContent", "section", "2012-02-21-noslug.md")
+			c2 := filepath.Join("getContent", "section", "2012-02-22-slug.md")
 
 			writeSource(t, fs, c1, fmt.Sprintf(pageTemplate, 1, ""))
 			writeSource(t, fs, c2, fmt.Sprintf(pageTemplate, 2, "slug: aslug"))
@@ -929,7 +929,7 @@ func TestWordCountWithMainEnglishWithCJKRunes(t *testing.T) {
 		}
 
 		if p.Summary() != simplePageWithMainEnglishWithCJKRunesSummary {
-			t.Fatalf("[%s] incorrect Summary for content '%s'. expected %v, got %v", ext, p.Plain(),
+			t.Fatalf("[%s] incorrect Summary for getContent '%s'. expected %v, got %v", ext, p.Plain(),
 				simplePageWithMainEnglishWithCJKRunesSummary, p.Summary())
 		}
 	}
@@ -946,11 +946,11 @@ func TestWordCountWithIsCJKLanguageFalse(t *testing.T) {
 	assertFunc := func(t *testing.T, ext string, pages page.Pages) {
 		p := pages[0]
 		if p.WordCount() != 75 {
-			t.Fatalf("[%s] incorrect word count for content '%s'. expected %v, got %v", ext, p.Plain(), 74, p.WordCount())
+			t.Fatalf("[%s] incorrect word count for getContent '%s'. expected %v, got %v", ext, p.Plain(), 74, p.WordCount())
 		}
 
 		if p.Summary() != simplePageWithIsCJKLanguageFalseSummary {
-			t.Fatalf("[%s] incorrect Summary for content '%s'. expected %v, got %v", ext, p.Plain(),
+			t.Fatalf("[%s] incorrect Summary for getContent '%s'. expected %v, got %v", ext, p.Plain(),
 				simplePageWithIsCJKLanguageFalseSummary, p.Summary())
 		}
 	}
@@ -989,7 +989,7 @@ func TestPagePaths(t *testing.T) {
 	}
 
 	tests := []struct {
-		content      string
+		getContent   string
 		path         string
 		hasPermalink bool
 		expected     string
@@ -1011,7 +1011,7 @@ func TestPagePaths(t *testing.T) {
 			cfg.Set("permalinks", siteParmalinksSetting)
 		}
 
-		writeSource(t, fs, filepath.Join("content", filepath.FromSlash(test.path)), test.content)
+		writeSource(t, fs, filepath.Join("getContent", filepath.FromSlash(test.path)), test.getContent)
 
 		s := buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg}, BuildCfg{SkipRender: true})
 		c.Assert(len(s.RegularPages()), qt.Equals, 1)
@@ -1024,8 +1024,8 @@ func TestTranslationKey(t *testing.T) {
 	c := qt.New(t)
 	cfg, fs := newTestCfg()
 
-	writeSource(t, fs, filepath.Join("content", filepath.FromSlash("sect/simple.no.md")), "---\ntitle: \"A1\"\ntranslationKey: \"k1\"\n---\nContent\n")
-	writeSource(t, fs, filepath.Join("content", filepath.FromSlash("sect/simple.en.md")), "---\ntitle: \"A2\"\n---\nContent\n")
+	writeSource(t, fs, filepath.Join("getContent", filepath.FromSlash("sect/simple.no.md")), "---\ntitle: \"A1\"\ntranslationKey: \"k1\"\n---\nContent\n")
+	writeSource(t, fs, filepath.Join("getContent", filepath.FromSlash("sect/simple.en.md")), "---\ntitle: \"A2\"\n---\nContent\n")
 
 	s := buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg}, BuildCfg{SkipRender: true})
 
@@ -1048,7 +1048,7 @@ func TestChompBOM(t *testing.T) {
 
 	cfg, fs := newTestCfg()
 
-	writeSource(t, fs, filepath.Join("content", "simple.md"), utf8BOM+simplePage)
+	writeSource(t, fs, filepath.Join("getContent", "simple.md"), utf8BOM+simplePage)
 
 	s := buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg}, BuildCfg{SkipRender: true})
 
@@ -1127,7 +1127,7 @@ title: "HTML Content"
 	b.WithContent("manualsummary.html", frontmatter+`
 <p>This is summary</p>
 <!--more-->
-<p>This is the main content.</p>`)
+<p>This is the main getContent.</p>`)
 
 	b.Build(BuildCfg{})
 
@@ -1146,7 +1146,7 @@ title: "HTML Content"
 		"public/manualsummary/index.html",
 		"Single: HTML Content|Hello|en|RelPermalink: /manualsummary/|",
 		"Summary: \n<p>This is summary</p>\n|Truncated: true",
-		"|<p>This is the main content.</p>|",
+		"|<p>This is the main getContent.</p>|",
 	)
 
 }
@@ -1250,7 +1250,7 @@ func TestPageWithCommentedOutFrontMatter(t *testing.T) {
 title = "hello"
 +++
 -->
-This is the content.
+This is the getContent.
 `)
 
 	b.WithTemplatesAdded("layouts/_default/single.html", `
@@ -1262,7 +1262,7 @@ Content:{{ .Content }}
 
 	b.AssertFileContent("public/page/index.html",
 		"Title: hello",
-		"Content:<p>This is the content.</p>",
+		"Content:<p>This is the getContent.</p>",
 	)
 
 }
@@ -1362,24 +1362,24 @@ func TestPathIssues(t *testing.T) {
 					"<html><body>P{{.Paginator.PageNumber}}|URL: {{.Paginator.URL}}|{{ if .Paginator.HasNext }}Next: {{.Paginator.Next.URL }}{{ end }}</body></html>")
 
 				for i := 0; i < 3; i++ {
-					writeSource(t, fs, filepath.Join("content", "post", fmt.Sprintf("doc%d.md", i)),
+					writeSource(t, fs, filepath.Join("getContent", "post", fmt.Sprintf("doc%d.md", i)),
 						fmt.Sprintf(`---
 title: "test%d.dot"
 tags:
 - ".net"
 ---
 # doc1
-*some content*`, i))
+*some getContent*`, i))
 				}
 
-				writeSource(t, fs, filepath.Join("content", "Blog", "Blog1.md"),
+				writeSource(t, fs, filepath.Join("getContent", "Blog", "Blog1.md"),
 					fmt.Sprintf(`---
 title: "testBlog"
 tags:
 - "Blog"
 ---
 # doc1
-*some blog content*`))
+*some blog getContent*`))
 
 				s := buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg}, BuildCfg{})
 
@@ -1398,9 +1398,9 @@ tags:
 					blog = "Blog"
 				}
 
-				th.assertFileContent(pathFunc("public/"+blog+"/"+blog+"1/index.html"), "some blog content")
+				th.assertFileContent(pathFunc("public/"+blog+"/"+blog+"1/index.html"), "some blog getContent")
 
-				th.assertFileContent(pathFunc("public/post/test0.dot/index.html"), "some content")
+				th.assertFileContent(pathFunc("public/post/test0.dot/index.html"), "some getContent")
 
 				if uglyURLs {
 					th.assertFileContent("public/post/page/1.html", `canonical" href="/post.html"/`)

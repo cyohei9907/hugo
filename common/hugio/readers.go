@@ -52,3 +52,28 @@ func NewReadSeekerNoOpCloser(r ReadSeeker) ReadSeekerNoOpCloser {
 func NewReadSeekerNoOpCloserFromString(content string) ReadSeekerNoOpCloser {
 	return ReadSeekerNoOpCloser{strings.NewReader(content)}
 }
+
+type multiReadCloser struct {
+	io.Reader
+	closers []io.ReadCloser
+}
+
+func (m multiReadCloser) Close() error {
+	var err error
+	for _, c := range m.closers {
+		if closeErr := c.Close(); err != nil {
+			err = closeErr
+		}
+	}
+	return err
+}
+
+// NewMultiReadCloser returns a io.ReadCloser that's the logical concatenation of
+// the provided input readers.
+func NewMultiReadCloser(readClosers ...io.ReadCloser) io.ReadCloser {
+	readers := make([]io.Reader, len(readClosers))
+	for i, r := range readClosers {
+		readers[i] = r
+	}
+	return multiReadCloser{Reader: io.MultiReader(readers...), closers: readClosers}
+}

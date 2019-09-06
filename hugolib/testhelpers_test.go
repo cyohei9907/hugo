@@ -902,7 +902,7 @@ func getPage(in page.Page, ref string) page.Page {
 	return p
 }
 
-func content(c resource.ContentProvider) string {
+func getContent(c resource.ContentProvider) string {
 	cc, err := c.Content()
 	if err != nil {
 		panic(err)
