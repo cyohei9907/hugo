@@ -74,6 +74,10 @@ func TestLanguageRootMapping(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 	c.Assert(collected, qt.DeepEquals, []string{"blog/en-f.txt", "blog/en-f2.txt", "blog/sv-f.txt", "blog/svdir/main.txt", "docs/sv-docs.txt"})
 
+	svFi, err := rfs.Stat(filepath.FromSlash("content/blog/sv-f.txt"))
+	c.Assert(err, qt.IsNil)
+	c.Assert(svFi.(FileMetaInfo).Meta().Lang(), qt.Equals, "sv")
+
 	bfs := afero.NewBasePathFs(rfs, "content")
 	collected, err = collectFilenames(bfs, "", "")
 	c.Assert(err, qt.IsNil)

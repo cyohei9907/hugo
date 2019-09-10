@@ -9,6 +9,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"github.com/gohugoio/hugo/htesting"
+
 	"github.com/gohugoio/hugo/output"
 
 	"github.com/gohugoio/hugo/parser/metadecoders"
@@ -690,6 +692,7 @@ func (s *sitesBuilder) AssertImage(width, height int, filename string) {
 	s.Assert(err, qt.IsNil)
 	defer f.Close()
 	cfg, err := jpeg.DecodeConfig(f)
+	s.Assert(err, qt.IsNil)
 	s.Assert(cfg.Width, qt.Equals, width)
 	s.Assert(cfg.Height, qt.Equals, height)
 }
@@ -716,7 +719,7 @@ func (s *sitesBuilder) AssertObject(expected string, object interface{}) {
 
 	if expected != got {
 		fmt.Println(got)
-		diff := helpers.DiffStrings(expected, got)
+		diff := htesting.DiffStrings(expected, got)
 		s.Fatalf("diff:\n%s\nexpected\n%s\ngot\n%s", diff, expected, got)
 	}
 }

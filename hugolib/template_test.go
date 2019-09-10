@@ -16,6 +16,7 @@ package hugolib
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gohugoio/hugo/identity"
@@ -441,8 +442,6 @@ func printRecursiveIdentities(level int, id identity.Provider) {
 	}
 }
 
-func ident(n int) {
-	for i := 0; i < n; i++ {
-		fmt.Print("  ")
-	}
+func ident(level int) {
+	fmt.Println(strings.Repeat(" ", level))
 }

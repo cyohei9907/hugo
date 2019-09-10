@@ -47,6 +47,11 @@ func FprintStackTrace(w io.Writer, err error) {
 	}
 }
 
+// ErrorSender is a, typically, non-blocking error handler.
+type ErrorSender interface {
+	SendError(err error)
+}
+
 // Recover is a helper function that can be used to capture panics.
 // Put this at the top of a method/function that crashes in a template:
 //     defer herrors.Recover()

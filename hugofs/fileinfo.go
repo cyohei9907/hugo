@@ -98,10 +98,10 @@ func (f FileMeta) Name() string {
 	return f.stringV(metaKeyName)
 }
 
-func (f FileMeta) Classifier() string {
-	c := f.stringV(metaKeyClassifier)
-	if c != "" {
-		return c
+func (f FileMeta) Classifier() files.ContentClass {
+	c, found := f[metaKeyClassifier]
+	if found {
+		return c.(files.ContentClass)
 	}
 
 	return files.ContentClassFile // For sorting

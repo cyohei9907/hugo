@@ -17,16 +17,11 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
-	"time"
 
-	"github.com/gohugoio/hugo/resources/resource"
+	"github.com/gohugoio/hugo/helpers"
 
-	"github.com/pkg/errors"
-
-	"github.com/gohugoio/hugo/cache"
 	"github.com/gohugoio/hugo/resources/page"
 )
 
@@ -35,25 +30,13 @@ var ambiguityFlag = &pageState{}
 
 // PageCollections contains the page collections for a site.
 type PageCollections struct {
-	pagesMap *pagesMap
-
-	// Includes absolute all pages (of all types), including drafts etc.
-	rawAllPages pageStatePages
-
-	// rawAllPages plus additional pages created during the build process.
-	workAllPages pageStatePages
-
-	// Includes headless bundles, i.e. bundles that produce no output for its content page.
-	headlessPages pageStatePages
+	pageMap *pageMap
 
 	// Lazy initialized page collections
 	pages           *lazyPagesFactory
 	regularPages    *lazyPagesFactory
 	allPages        *lazyPagesFactory
 	allRegularPages *lazyPagesFactory
-
-	// The index for .Site.GetPage etc.
-	pageIndex *cache.Lazy
 }
 
 // Pages returns all pages.
@@ -78,25 +61,6 @@ func (c *PageCollections) AllRegularPages() page.Pages {
 	return c.allRegularPages.get()
 }
 
-// Get initializes the index if not already done so, then
-// looks up the given page ref, returns nil if no value found.
-func (c *PageCollections) getFromCache(ref string) (page.Page, error) {
-	v, found, err := c.pageIndex.Get(ref)
-	if err != nil {
-		return nil, err
-	}
-	if !found {
-		return nil, nil
-	}
-
-	p := v.(page.Page)
-
-	if p != ambiguityFlag {
-		return p, nil
-	}
-	return nil, fmt.Errorf("page reference %q is ambiguous", ref)
-}
-
 type lazyPagesFactory struct {
 	pages page.Pages
 
@@ -115,83 +79,19 @@ func newLazyPagesFactory(factory page.PagesFactory) *lazyPagesFactory {
 	return &lazyPagesFactory{factory: factory}
 }
 
-func newPageCollections() *PageCollections {
-	return newPageCollectionsFromPages(nil)
-}
+func newPageCollections(m *pageMap) *PageCollections {
+	if m == nil {
+		panic("must provide a pageMap")
+	}
 
-func newPageCollectionsFromPages(pages pageStatePages) *PageCollections {
-
-	c := &PageCollections{rawAllPages: pages}
+	c := &PageCollections{pageMap: m}
 
 	c.pages = newLazyPagesFactory(func() page.Pages {
-		pages := make(page.Pages, len(c.workAllPages))
-		for i, p := range c.workAllPages {
-			pages[i] = p
-		}
-		return pages
+		return m.createListAllPages()
 	})
 
 	c.regularPages = newLazyPagesFactory(func() page.Pages {
-		return c.findPagesByKindInWorkPages(page.KindPage, c.workAllPages)
-	})
-
-	c.pageIndex = cache.NewLazy(func() (map[string]interface{}, error) {
-		index := make(map[string]interface{})
-
-		add := func(ref string, p page.Page) {
-			ref = strings.ToLower(ref)
-			existing := index[ref]
-			if existing == nil {
-				index[ref] = p
-			} else if existing != ambiguityFlag && existing != p {
-				index[ref] = ambiguityFlag
-			}
-		}
-
-		for _, pageCollection := range []pageStatePages{c.workAllPages, c.headlessPages} {
-			for _, p := range pageCollection {
-				if p.IsPage() {
-					sourceRefs := p.sourceRefs()
-					for _, ref := range sourceRefs {
-						add(ref, p)
-					}
-					sourceRef := sourceRefs[0]
-
-					// Ref/Relref supports this potentially ambiguous lookup.
-					add(p.File().LogicalName(), p)
-
-					translationBaseName := p.File().TranslationBaseName()
-
-					dir, _ := path.Split(sourceRef)
-					dir = strings.TrimSuffix(dir, "/")
-
-					if translationBaseName == "index" {
-						add(dir, p)
-						add(path.Base(dir), p)
-					} else {
-						add(translationBaseName, p)
-					}
-
-					// We need a way to get to the current language version.
-					pathWithNoExtensions := path.Join(dir, translationBaseName)
-					add(pathWithNoExtensions, p)
-				} else {
-					sourceRefs := p.sourceRefs()
-					for _, ref := range sourceRefs {
-						add(ref, p)
-					}
-
-					ref := p.SectionsPath()
-
-					// index the canonical, unambiguous virtual ref
-					// e.g. /section
-					// (this may already have been indexed above)
-					add("/"+ref, p)
-				}
-			}
-		}
-
-		return index, nil
+		return c.findPagesByKindIn(page.KindPage, c.pages.get())
 	})
 
 	return c
@@ -242,6 +142,8 @@ func (c *PageCollections) getPageOldVersion(ref ...string) (page.Page, error) {
 	return c.getPageNew(nil, key)
 }
 
+// TODO1 https://github.com/gohugoio/hugo/issues/6701 /Readme.md
+
 // 	Only used in tests.
 func (c *PageCollections) getPage(typ string, sections ...string) page.Page {
 	refs := append([]string{typ}, path.Join(sections...))
@@ -249,64 +151,106 @@ func (c *PageCollections) getPage(typ string, sections ...string) page.Page {
 	return p
 }
 
-// Case insensitive page lookup.
 func (c *PageCollections) getPageNew(context page.Page, ref string) (page.Page, error) {
-	var anError error
+	n, err := c.getContentNode(context, ref)
+	if err != nil || n == nil || n.p == nil {
+		return nil, err
+	}
+	return n.p, nil
+}
+
+func (c *PageCollections) getSectionOrPage(ref string) (*contentNode, string) {
+	s, v, found := c.pageMap.sections.LongestPrefix(ref)
+
+	m := c.pageMap
+	filename := strings.TrimPrefix(strings.TrimPrefix(ref, s), "/")
+	langSuffix := "." + m.s.Lang()
+
+	// Trim both extension and any language code.
+	name := helpers.PathNoExt(filename)
+	name = strings.TrimSuffix(name, langSuffix)
+
+	// These are reserved bundle names and will always be stored by their owning
+	// folder name.
+	name = strings.TrimSuffix(name, "/index")
+	name = strings.TrimSuffix(name, "/_index")
+
+	if !found {
+		return nil, name
+	}
+
+	n := v.(*contentNode)
+
+	if s == ref {
+		// A section
+		return n, name
+	}
+
+	// Check if it's a section with filename provided.
+	if !n.p.File().IsZero() && n.p.File().LogicalName() == filename {
+		return n, name
+	}
+
+	return m.getPage(s, name), name
+
+}
+
+func (c *PageCollections) getContentNode(context page.Page, ref string) (*contentNode, error) {
+	inRef := ref
+	if !strings.HasPrefix(ref, "/") && context != nil {
+		// Try the page-relative path.
+		var base string
+		// TODO1 vs mount / Path
+		if context.File().IsZero() {
+			base = context.SectionsPath()
+		} else {
+			base = filepath.ToSlash(context.File().Dir())
+		}
+		ref = path.Join("/", strings.ToLower(base), ref)
+	}
 
 	ref = strings.ToLower(ref)
-
-	// Absolute (content root relative) reference.
-	if strings.HasPrefix(ref, "/") {
-		p, err := c.getFromCache(ref)
-		if err == nil && p != nil {
-			return p, nil
-		}
-		if err != nil {
-			anError = err
-		}
-
-	} else if context != nil {
-		// Try the page-relative path.
-		var dir string
-		if !context.File().IsZero() {
-			dir = filepath.ToSlash(context.File().Dir())
-		} else {
-			dir = context.SectionsPath()
-		}
-		ppath := path.Join("/", strings.ToLower(dir), ref)
-
-		p, err := c.getFromCache(ppath)
-		if err == nil && p != nil {
-			return p, nil
-		}
-		if err != nil {
-			anError = err
-		}
-	}
-
 	if !strings.HasPrefix(ref, "/") {
+		ref = "/" + ref
+	}
+
+	m := c.pageMap
+
+	// It's either a section, a page in a section or a taxonomy node.
+	// Start with the most likely:
+	n, name := c.getSectionOrPage(ref)
+	if n != nil {
+		return n, nil
+	}
+
+	if !strings.HasPrefix(inRef, "/") {
 		// Many people will have "post/foo.md" in their content files.
-		p, err := c.getFromCache("/" + ref)
-		if err == nil && p != nil {
-			return p, nil
-		}
-		if err != nil {
-			anError = err
+		if n, _ := c.getSectionOrPage("/" + inRef); n != nil {
+			return n, nil
 		}
 	}
 
-	// Last try.
-	ref = strings.TrimPrefix(ref, "/")
-	p, err := c.getFromCache(ref)
-	if err != nil {
-		anError = err
+	// Check if it's a taxonomy node
+	s, v, found := m.taxonomies.LongestPrefix(ref)
+	if found {
+		if !m.onSameLevel(ref, s) {
+			return nil, nil
+		}
+		return v.(*contentNode), nil
 	}
 
-	if p == nil && anError != nil {
-		return nil, wrapErr(errors.Wrap(anError, "failed to resolve ref"), context)
+	// ref/relref supports this potentially ambigous format
+	// TODO(bep) consider storing the value.
+	s = m.pagesByName.Get(name)
+	if s != "" {
+		if s == ambiguityKey {
+			return nil, fmt.Errorf("page reference %q is ambiguous", ref)
+		}
+		v, _ := m.pages.Get(s)
+		return v.(*contentNode), nil
 	}
 
-	return p, nil
+	return nil, nil
 }
 
 func (*PageCollections) findPagesByKindIn(kind string, inPages page.Pages) page.Pages {
@@ -319,237 +263,8 @@ func (*PageCollections) findPagesByKindIn(kind string, inPages page.Pages) page.
 	return pages
 }
 
-func (c *PageCollections) findPagesByKind(kind string) page.Pages {
-	return c.findPagesByKindIn(kind, c.Pages())
-}
-
-func (c *PageCollections) findWorkPagesByKind(kind string) pageStatePages {
-	var pages pageStatePages
-	for _, p := range c.workAllPages {
-		if p.Kind() == kind {
-			pages = append(pages, p)
-		}
-	}
-	return pages
-}
-
-func (*PageCollections) findPagesByKindInWorkPages(kind string, inPages pageStatePages) page.Pages {
-	var pages page.Pages
-	for _, p := range inPages {
-		if p.Kind() == kind {
-			pages = append(pages, p)
-		}
-	}
-	return pages
-}
-
-func (c *PageCollections) addPage(page *pageState) {
-	c.rawAllPages = append(c.rawAllPages, page)
-}
-
-func (c *PageCollections) removePageFilename(filename string) {
-	if i := c.rawAllPages.findPagePosByFilename(filename); i >= 0 {
-		c.clearResourceCacheForPage(c.rawAllPages[i])
-		c.rawAllPages = append(c.rawAllPages[:i], c.rawAllPages[i+1:]...)
-	}
-
-}
-
-func (c *PageCollections) removePage(page *pageState) {
-	if i := c.rawAllPages.findPagePos(page); i >= 0 {
-		c.clearResourceCacheForPage(c.rawAllPages[i])
-		c.rawAllPages = append(c.rawAllPages[:i], c.rawAllPages[i+1:]...)
-	}
-}
-
-func (c *PageCollections) replacePage(page *pageState) {
-	// will find existing page that matches filepath and remove it
-	c.removePage(page)
-	c.addPage(page)
-}
-
 func (c *PageCollections) clearResourceCacheForPage(page *pageState) {
 	if len(page.resources) > 0 {
 		page.s.ResourceSpec.DeleteCacheByPrefix(page.targetPaths().SubResourceBaseTarget)
 	}
-}
-
-func (c *PageCollections) assemblePagesMap(s *Site) error {
-
-	c.pagesMap = newPagesMap(s)
-
-	rootSections := make(map[string]bool)
-
-	// Add all branch nodes first.
-	for _, p := range c.rawAllPages {
-		rootSections[p.Section()] = true
-		if p.IsPage() {
-			continue
-		}
-		c.pagesMap.addPage(p)
-	}
-
-	// Create missing home page and the first level sections if no
-	// _index provided.
-	s.home = c.pagesMap.getOrCreateHome()
-	for k := range rootSections {
-		c.pagesMap.createSectionIfNotExists(k)
-	}
-
-	// Attach the regular pages to their section.
-	for _, p := range c.rawAllPages {
-		if p.IsNode() {
-			continue
-		}
-		c.pagesMap.addPage(p)
-	}
-
-	return nil
-}
-
-func (c *PageCollections) createWorkAllPages() error {
-	c.workAllPages = make(pageStatePages, 0, len(c.rawAllPages))
-	c.headlessPages = make(pageStatePages, 0)
-
-	var (
-		homeDates    *resource.Dates
-		sectionDates *resource.Dates
-		siteLastmod  time.Time
-		siteLastDate time.Time
-
-		sectionsParamId      = "mainSections"
-		sectionsParamIdLower = strings.ToLower(sectionsParamId)
-	)
-
-	mainSections, mainSectionsFound := c.pagesMap.s.Info.Params()[sectionsParamIdLower]
-
-	var (
-		bucketsToRemove []string
-		rootBuckets     []*pagesMapBucket
-		walkErr         error
-	)
-
-	c.pagesMap.r.Walk(func(s string, v interface{}) bool {
-		bucket := v.(*pagesMapBucket)
-		parentBucket := c.pagesMap.parentBucket(s)
-
-		if parentBucket != nil {
-
-			if !mainSectionsFound && strings.Count(s, "/") == 1 && bucket.owner.IsSection() {
-				// Root section
-				rootBuckets = append(rootBuckets, bucket)
-			}
-		}
-
-		if bucket.owner.IsHome() {
-			if resource.IsZeroDates(bucket.owner) {
-				// Calculate dates from the page tree.
-				homeDates = &bucket.owner.m.Dates
-			}
-		}
-
-		sectionDates = nil
-		if resource.IsZeroDates(bucket.owner) {
-			sectionDates = &bucket.owner.m.Dates
-		}
-
-		if parentBucket != nil {
-			bucket.parent = parentBucket
-			if bucket.owner.IsSection() {
-				parentBucket.bucketSections = append(parentBucket.bucketSections, bucket)
-			}
-		}
-
-		if bucket.isEmpty() {
-			if bucket.owner.IsSection() && bucket.owner.File().IsZero() {
-				// Check for any nested section.
-				var hasDescendant bool
-				c.pagesMap.r.WalkPrefix(s, func(ss string, v interface{}) bool {
-					if s != ss {
-						hasDescendant = true
-						return true
-					}
-					return false
-				})
-				if !hasDescendant {
-					// This is an auto-created section with, now, nothing in it.
-					bucketsToRemove = append(bucketsToRemove, s)
-					return false
-				}
-			}
-		}
-
-		if !bucket.disabled {
-			c.workAllPages = append(c.workAllPages, bucket.owner)
-		}
-
-		if !bucket.view {
-			for _, p := range bucket.headlessPages {
-				ps := p.(*pageState)
-				ps.parent = bucket.owner
-				c.headlessPages = append(c.headlessPages, ps)
-			}
-			for _, p := range bucket.pages {
-				ps := p.(*pageState)
-				ps.parent = bucket.owner
-				c.workAllPages = append(c.workAllPages, ps)
-
-				if homeDates != nil {
-					homeDates.UpdateDateAndLastmodIfAfter(ps)
-				}
-
-				if sectionDates != nil {
-					sectionDates.UpdateDateAndLastmodIfAfter(ps)
-				}
-
-				if p.Lastmod().After(siteLastmod) {
-					siteLastmod = p.Lastmod()
-				}
-				if p.Date().After(siteLastDate) {
-					siteLastDate = p.Date()
-				}
-			}
-		}
-
-		return false
-	})
-
-	if walkErr != nil {
-		return walkErr
-	}
-
-	c.pagesMap.s.lastmod = siteLastmod
-
-	if !mainSectionsFound {
-
-		// Calculare main section
-		var (
-			maxRootBucketWeight int
-			maxRootBucket       *pagesMapBucket
-		)
-
-		for _, b := range rootBuckets {
-			weight := len(b.pages) + (len(b.bucketSections) * 5)
-			if weight >= maxRootBucketWeight {
-				maxRootBucket = b
-				maxRootBucketWeight = weight
-			}
-		}
-
-		if maxRootBucket != nil {
-			// Try to make this as backwards compatible as possible.
-			mainSections = []string{maxRootBucket.owner.Section()}
-		}
-	}
-
-	c.pagesMap.s.Info.Params()[sectionsParamId] = mainSections
-	c.pagesMap.s.Info.Params()[sectionsParamIdLower] = mainSections
-
-	for _, key := range bucketsToRemove {
-		c.pagesMap.r.Delete(key)
-	}
-
-	sort.Sort(c.workAllPages)
-
-	return nil
 }

@@ -50,7 +50,7 @@ YAML frontmatter with tags and categories taxonomy.`
 	s := buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg}, BuildCfg{})
 
 	st := make([]string, 0)
-	for _, t := range s.Taxonomies["tags"].ByCount() {
+	for _, t := range s.Taxonomies()["tags"].ByCount() {
 		st = append(st, t.Page().Title()+":"+t.Name)
 	}
 
@@ -166,9 +166,10 @@ permalinkeds:
 	}
 
 	for taxonomy, count := range taxonomyTermPageCounts {
+		msg := qt.Commentf(taxonomy)
 		term := s.getPage(page.KindTaxonomyTerm, taxonomy)
-		b.Assert(term, qt.Not(qt.IsNil))
-		b.Assert(len(term.Pages()), qt.Equals, count, qt.Commentf(taxonomy))
+		b.Assert(term, qt.Not(qt.IsNil), msg)
+		b.Assert(len(term.Pages()), qt.Equals, count, msg)
 
 		for _, p := range term.Pages() {
 			b.Assert(p.Kind(), qt.Equals, page.KindTaxonomy)
@@ -258,8 +259,18 @@ title: "This is S3s"
 
 	s := b.H.Sites[0]
 
-	ta := s.findPagesByKind(page.KindTaxonomy)
-	te := s.findPagesByKind(page.KindTaxonomyTerm)
+	filerbyKind := func(kind string) page.Pages {
+		var pages page.Pages
+		for _, p := range s.Pages() {
+			if p.Kind() == kind {
+				pages = append(pages, p)
+			}
+		}
+		return pages
+	}
+
+	ta := filerbyKind(page.KindTaxonomy)
+	te := filerbyKind(page.KindTaxonomyTerm)
 
 	b.Assert(len(te), qt.Equals, 4)
 	b.Assert(len(ta), qt.Equals, 7)
@@ -353,9 +364,6 @@ categories: ["regular"]
 
 }
 
-// See https://github.com/gohugoio/hugo/issues/6222
-// We need to revisit this once we figure out what to do with the
-// draft etc _index pages, but for now we need to avoid the crash.
 func TestTaxonomiesIndexDraft(t *testing.T) {
 	t.Parallel()
 
@@ -366,9 +374,18 @@ title: "The Categories"
 draft: true
 ---
 
-This is the invisible content.
+Content.
 
-`)
+`,
+		"page.md", `---
+title: "The Page"
+categories: ["cool"]
+---
+
+Content.
+
+`,
+	)
 
 	b.WithTemplates("index.html", `
 {{ range .Site.Pages }}
@@ -378,7 +395,8 @@ This is the invisible content.
 
 	b.Build(BuildCfg{})
 
-	// We publish the index page, but the content will be empty.
-	b.AssertFileContent("public/index.html", " /categories/|The Categories|0||")
+	b.AssertFileContentFn("public/index.html", func(s string) bool {
+		return !strings.Contains(s, "categories")
+	})
 
 }

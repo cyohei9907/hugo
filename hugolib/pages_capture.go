@@ -19,20 +19,8 @@ import (
 	"os"
 	pth "path"
 	"path/filepath"
-	"strings"
-
-	"github.com/gohugoio/hugo/config"
 
 	"github.com/gohugoio/hugo/hugofs/files"
-
-	"github.com/gohugoio/hugo/resources"
-
-	"github.com/pkg/errors"
-	"golang.org/x/sync/errgroup"
-
-	"github.com/gohugoio/hugo/common/hugio"
-
-	"github.com/gohugoio/hugo/resources/resource"
 
 	"github.com/gohugoio/hugo/source"
 
@@ -57,14 +45,10 @@ func newPagesCollector(
 	}
 }
 
-func newPagesProcessor(h *HugoSites, sp *source.SourceSpec, partialBuild bool) *pagesProcessor {
-
-	return &pagesProcessor{
-		h:            h,
-		sp:           sp,
-		partialBuild: partialBuild,
-		numWorkers:   config.GetNumWorkerMultiplier() * 3,
-	}
+type contentDirKey struct {
+	dirname  string
+	filename string
+	tp       bundleDirType
 }
 
 type fileinfoBundle struct {
@@ -99,17 +83,13 @@ type pagesCollector struct {
 	proc pagesCollectorProcessorProvider
 }
 
-type contentDirKey struct {
-	dirname  string
-	filename string
-	tp       bundleDirType
-}
-
 // Collect.
-func (c *pagesCollector) Collect() error {
+func (c *pagesCollector) Collect() (collectErr error) {
 	c.proc.Start(context.Background())
+	defer func() {
+		collectErr = c.proc.Wait()
+	}()
 
-	var collectErr error
 	if len(c.filenames) == 0 {
 		// Collect everything.
 		collectErr = c.collectDir("", false, nil)
@@ -138,13 +118,120 @@ func (c *pagesCollector) Collect() error {
 
 	}
 
-	err := c.proc.Wait()
+	return
 
-	if collectErr != nil {
-		return collectErr
+}
+
+func (c *pagesCollector) isBundleHeader(fi hugofs.FileMetaInfo) bool {
+	class := fi.Meta().Classifier()
+	return class == files.ContentClassLeaf || class == files.ContentClassBranch
+}
+
+func (c *pagesCollector) getLang(fi hugofs.FileMetaInfo) string {
+	lang := fi.Meta().Lang()
+	if lang != "" {
+		return lang
 	}
 
-	return err
+	return c.sp.DefaultContentLanguage
+}
+
+func (c *pagesCollector) addToBundle(info hugofs.FileMetaInfo, btyp bundleDirType, bundles pageBundles) error {
+	getBundle := func(lang string) *fileinfoBundle {
+		return bundles[lang]
+	}
+
+	cloneBundle := func(lang string) *fileinfoBundle {
+		// Every bundled content file needs a content file header.
+		// Use the default content language if found, else just
+		// pick one.
+		var (
+			source *fileinfoBundle
+			found  bool
+		)
+
+		source, found = bundles[c.sp.DefaultContentLanguage]
+		if !found {
+			for _, b := range bundles {
+				source = b
+				break
+			}
+		}
+
+		if source == nil {
+			panic(fmt.Sprintf("no source found, %d", len(bundles)))
+		}
+
+		clone := c.cloneFileInfo(source.header)
+		clone.Meta()["lang"] = lang
+
+		return &fileinfoBundle{
+			header: clone,
+		}
+	}
+
+	lang := c.getLang(info)
+	bundle := getBundle(lang)
+	isBundleHeader := c.isBundleHeader(info)
+	if bundle != nil && isBundleHeader {
+		// index.md file inside a bundle, see issue 6208.
+		info.Meta()["classifier"] = files.ContentClassContent
+		isBundleHeader = false
+	}
+	classifier := info.Meta().Classifier()
+	isContent := classifier == files.ContentClassContent
+	if bundle == nil {
+		if isBundleHeader {
+			bundle = &fileinfoBundle{header: info}
+			bundles[lang] = bundle
+		} else {
+			if btyp == bundleBranch {
+				// No special logic for branch bundles.
+				// Every language needs its own _index.md file.
+				// Also, we only clone bundle headers for lonsesome, bundled,
+				// content files.
+				return c.handleFiles(info)
+			}
+
+			if isContent {
+				bundle = cloneBundle(lang)
+				bundles[lang] = bundle
+			}
+		}
+	}
+
+	if !isBundleHeader && bundle != nil {
+		bundle.resources = append(bundle.resources, info)
+	}
+
+	if classifier == files.ContentClassFile {
+		translations := info.Meta().Translations()
+
+		for lang, b := range bundles {
+			if !stringSliceContains(lang, translations...) && !b.containsResource(info.Name()) {
+
+				// Clone and add it to the bundle.
+				clone := c.cloneFileInfo(info)
+				clone.Meta()["lang"] = lang
+				b.resources = append(b.resources, clone)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (c *pagesCollector) cloneFileInfo(fi hugofs.FileMetaInfo) hugofs.FileMetaInfo {
+	cm := hugofs.FileMeta{}
+	meta := fi.Meta()
+	if meta == nil {
+		panic(fmt.Sprintf("not meta: %v", fi.Name()))
+	}
+	for k, v := range meta {
+		cm[k] = v
+	}
+
+	return hugofs.NewFileMetaInfo(fi, cm)
 }
 
 func (c *pagesCollector) collectDir(dirname string, partial bool, inFilter func(fim hugofs.FileMetaInfo) bool) error {
@@ -320,122 +407,12 @@ func (c *pagesCollector) collectDir(dirname string, partial bool, inFilter func(
 
 }
 
-func (c *pagesCollector) isBundleHeader(fi hugofs.FileMetaInfo) bool {
-	class := fi.Meta().Classifier()
-	return class == files.ContentClassLeaf || class == files.ContentClassBranch
-}
-
-func (c *pagesCollector) getLang(fi hugofs.FileMetaInfo) string {
-	lang := fi.Meta().Lang()
-	if lang != "" {
-		return lang
-	}
-
-	return c.sp.DefaultContentLanguage
-}
-
-func (c *pagesCollector) addToBundle(info hugofs.FileMetaInfo, btyp bundleDirType, bundles pageBundles) error {
-	getBundle := func(lang string) *fileinfoBundle {
-		return bundles[lang]
-	}
-
-	cloneBundle := func(lang string) *fileinfoBundle {
-		// Every bundled content file needs a content file header.
-		// Use the default content language if found, else just
-		// pick one.
-		var (
-			source *fileinfoBundle
-			found  bool
-		)
-
-		source, found = bundles[c.sp.DefaultContentLanguage]
-		if !found {
-			for _, b := range bundles {
-				source = b
-				break
-			}
-		}
-
-		if source == nil {
-			panic(fmt.Sprintf("no source found, %d", len(bundles)))
-		}
-
-		clone := c.cloneFileInfo(source.header)
-		clone.Meta()["lang"] = lang
-
-		return &fileinfoBundle{
-			header: clone,
-		}
-	}
-
-	lang := c.getLang(info)
-	bundle := getBundle(lang)
-	isBundleHeader := c.isBundleHeader(info)
-	if bundle != nil && isBundleHeader {
-		// index.md file inside a bundle, see issue 6208.
-		info.Meta()["classifier"] = files.ContentClassContent
-		isBundleHeader = false
-	}
-	classifier := info.Meta().Classifier()
-	isContent := classifier == files.ContentClassContent
-	if bundle == nil {
-		if isBundleHeader {
-			bundle = &fileinfoBundle{header: info}
-			bundles[lang] = bundle
-		} else {
-			if btyp == bundleBranch {
-				// No special logic for branch bundles.
-				// Every language needs its own _index.md file.
-				// Also, we only clone bundle headers for lonsesome, bundled,
-				// content files.
-				return c.handleFiles(info)
-			}
-
-			if isContent {
-				bundle = cloneBundle(lang)
-				bundles[lang] = bundle
-			}
-		}
-	}
-
-	if !isBundleHeader && bundle != nil {
-		bundle.resources = append(bundle.resources, info)
-	}
-
-	if classifier == files.ContentClassFile {
-		translations := info.Meta().Translations()
-
-		for lang, b := range bundles {
-			if !stringSliceContains(lang, translations...) && !b.containsResource(info.Name()) {
-
-				// Clone and add it to the bundle.
-				clone := c.cloneFileInfo(info)
-				clone.Meta()["lang"] = lang
-				b.resources = append(b.resources, clone)
-			}
-		}
-	}
-
-	return nil
-}
-
-func (c *pagesCollector) cloneFileInfo(fi hugofs.FileMetaInfo) hugofs.FileMetaInfo {
-	cm := hugofs.FileMeta{}
-	meta := fi.Meta()
-	if meta == nil {
-		panic(fmt.Sprintf("not meta: %v", fi.Name()))
-	}
-	for k, v := range meta {
-		cm[k] = v
-	}
-
-	return hugofs.NewFileMetaInfo(fi, cm)
-}
-
 func (c *pagesCollector) handleBundleBranch(readdir []hugofs.FileMetaInfo) error {
 
 	// Maps bundles to its language.
 	bundles := pageBundles{}
+
+	var contentFiles []hugofs.FileMetaInfo
 
 	for _, fim := range readdir {
 
@@ -447,9 +424,7 @@ func (c *pagesCollector) handleBundleBranch(readdir []hugofs.FileMetaInfo) error
 
 		switch meta.Classifier() {
 		case files.ContentClassContent:
-			if err := c.handleFiles(fim); err != nil {
-				return err
-			}
+			contentFiles = append(contentFiles, fim)
 		default:
 			if err := c.addToBundle(fim, bundleBranch, bundles); err != nil {
 				return err
@@ -458,7 +433,12 @@ func (c *pagesCollector) handleBundleBranch(readdir []hugofs.FileMetaInfo) error
 
 	}
 
-	return c.proc.Process(bundles)
+	// Make sure the section is created before its pages.
+	if err := c.proc.Process(bundles); err != nil {
+		return err
+	}
+
+	return c.handleFiles(contentFiles...)
 
 }
 
@@ -506,273 +486,6 @@ func (c *pagesCollector) handleFiles(fis ...hugofs.FileMetaInfo) error {
 		}
 	}
 	return nil
-}
-
-type pagesCollectorProcessorProvider interface {
-	Process(item interface{}) error
-	Start(ctx context.Context) context.Context
-	Wait() error
-}
-
-type pagesProcessor struct {
-	h  *HugoSites
-	sp *source.SourceSpec
-
-	itemChan  chan interface{}
-	itemGroup *errgroup.Group
-
-	// The output Pages
-	pagesChan  chan *pageState
-	pagesGroup *errgroup.Group
-
-	numWorkers int
-
-	partialBuild bool
-}
-
-func (proc *pagesProcessor) Process(item interface{}) error {
-	proc.itemChan <- item
-	return nil
-}
-
-func (proc *pagesProcessor) Start(ctx context.Context) context.Context {
-	proc.pagesChan = make(chan *pageState, proc.numWorkers)
-	proc.pagesGroup, ctx = errgroup.WithContext(ctx)
-	proc.itemChan = make(chan interface{}, proc.numWorkers)
-	proc.itemGroup, ctx = errgroup.WithContext(ctx)
-
-	proc.pagesGroup.Go(func() error {
-		for p := range proc.pagesChan {
-			s := p.s
-			p.forceRender = proc.partialBuild
-
-			if p.forceRender {
-				s.replacePage(p)
-			} else {
-				s.addPage(p)
-			}
-		}
-		return nil
-	})
-
-	for i := 0; i < proc.numWorkers; i++ {
-		proc.itemGroup.Go(func() error {
-			for item := range proc.itemChan {
-				select {
-				case <-proc.h.Done():
-					return nil
-				default:
-					if err := proc.process(item); err != nil {
-						proc.h.SendError(err)
-					}
-				}
-			}
-
-			return nil
-		})
-	}
-
-	return ctx
-}
-
-func (proc *pagesProcessor) Wait() error {
-	close(proc.itemChan)
-
-	err := proc.itemGroup.Wait()
-
-	close(proc.pagesChan)
-
-	if err != nil {
-		return err
-	}
-
-	return proc.pagesGroup.Wait()
-}
-
-func (proc *pagesProcessor) newPageFromBundle(b *fileinfoBundle) (*pageState, error) {
-	p, err := proc.newPageFromFi(b.header, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(b.resources) > 0 {
-
-		resources := make(resource.Resources, len(b.resources))
-
-		for i, rfi := range b.resources {
-			meta := rfi.Meta()
-			classifier := meta.Classifier()
-			var r resource.Resource
-			switch classifier {
-			case files.ContentClassContent:
-				rp, err := proc.newPageFromFi(rfi, p)
-				if err != nil {
-					return nil, err
-				}
-				rp.m.resourcePath = filepath.ToSlash(strings.TrimPrefix(rp.Path(), p.File().Dir()))
-
-				r = rp
-
-			case files.ContentClassFile:
-				r, err = proc.newResource(rfi, p)
-				if err != nil {
-					return nil, err
-				}
-			default:
-				panic(fmt.Sprintf("invalid classifier: %q", classifier))
-			}
-
-			resources[i] = r
-
-		}
-
-		p.addResources(resources...)
-	}
-
-	return p, nil
-}
-
-func (proc *pagesProcessor) newPageFromFi(fim hugofs.FileMetaInfo, owner *pageState) (*pageState, error) {
-	fi, err := newFileInfo(proc.sp, fim)
-	if err != nil {
-		return nil, err
-	}
-
-	var s *Site
-	meta := fim.Meta()
-
-	if owner != nil {
-		s = owner.s
-	} else {
-		lang := meta.Lang()
-		s = proc.getSite(lang)
-	}
-
-	r := func() (hugio.ReadSeekCloser, error) {
-		return meta.Open()
-	}
-
-	p, err := newPageWithContent(fi, s, owner != nil, r)
-	if err != nil {
-		return nil, err
-	}
-	p.parent = owner
-	return p, nil
-}
-
-func (proc *pagesProcessor) newResource(fim hugofs.FileMetaInfo, owner *pageState) (resource.Resource, error) {
-
-	// TODO(bep) consolidate with multihost logic + clean up
-	outputFormats := owner.m.outputFormats()
-	seen := make(map[string]bool)
-	var targetBasePaths []string
-	// Make sure bundled resources are published to all of the ouptput formats'
-	// sub paths.
-	for _, f := range outputFormats {
-		p := f.Path
-		if seen[p] {
-			continue
-		}
-		seen[p] = true
-		targetBasePaths = append(targetBasePaths, p)
-
-	}
-
-	meta := fim.Meta()
-	r := func() (hugio.ReadSeekCloser, error) {
-		return meta.Open()
-	}
-
-	target := strings.TrimPrefix(meta.Path(), owner.File().Dir())
-
-	return owner.s.ResourceSpec.New(
-		resources.ResourceSourceDescriptor{
-			TargetPaths:        owner.getTargetPaths,
-			OpenReadSeekCloser: r,
-			FileInfo:           fim,
-			RelTargetFilename:  target,
-			TargetBasePaths:    targetBasePaths,
-		})
-}
-
-func (proc *pagesProcessor) getSite(lang string) *Site {
-	if lang == "" {
-		return proc.h.Sites[0]
-	}
-
-	for _, s := range proc.h.Sites {
-		if lang == s.Lang() {
-			return s
-		}
-	}
-	return proc.h.Sites[0]
-}
-
-func (proc *pagesProcessor) copyFile(fim hugofs.FileMetaInfo) error {
-	meta := fim.Meta()
-	s := proc.getSite(meta.Lang())
-	f, err := meta.Open()
-	if err != nil {
-		return errors.Wrap(err, "copyFile: failed to open")
-	}
-
-	target := filepath.Join(s.PathSpec.GetTargetLanguageBasePath(), meta.Path())
-
-	defer f.Close()
-
-	return s.publish(&s.PathSpec.ProcessingStats.Files, target, f)
-
-}
-
-func (proc *pagesProcessor) process(item interface{}) error {
-	send := func(p *pageState, err error) {
-		if err != nil {
-			proc.sendError(err)
-		} else {
-			proc.pagesChan <- p
-		}
-	}
-
-	switch v := item.(type) {
-	// Page bundles mapped to their language.
-	case pageBundles:
-		for _, bundle := range v {
-			if proc.shouldSkip(bundle.header) {
-				continue
-			}
-			send(proc.newPageFromBundle(bundle))
-		}
-	case hugofs.FileMetaInfo:
-		if proc.shouldSkip(v) {
-			return nil
-		}
-		meta := v.Meta()
-
-		classifier := meta.Classifier()
-		switch classifier {
-		case files.ContentClassContent:
-			send(proc.newPageFromFi(v, nil))
-		case files.ContentClassFile:
-			proc.sendError(proc.copyFile(v))
-		default:
-			panic(fmt.Sprintf("invalid classifier: %q", classifier))
-		}
-	default:
-		panic(fmt.Sprintf("unrecognized item type in Process: %T", item))
-	}
-
-	return nil
-}
-
-func (proc *pagesProcessor) sendError(err error) {
-	if err == nil {
-		return
-	}
-	proc.h.SendError(err)
-}
-
-func (proc *pagesProcessor) shouldSkip(fim hugofs.FileMetaInfo) bool {
-	return proc.sp.DisabledLanguages[fim.Meta().Lang()]
 }
 
 func stringSliceContains(k string, values ...string) bool {

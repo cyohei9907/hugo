@@ -19,8 +19,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/pkg/errors"
-
 	"github.com/gohugoio/hugo/helpers"
 	"github.com/gohugoio/hugo/source"
 
@@ -64,12 +62,6 @@ func TestPagesCapture(t *testing.T) {
 		c.Assert(len(proc.items), qt.Equals, 4)
 	})
 
-	t.Run("error in Wait", func(t *testing.T) {
-		c := qt.New(t)
-		coll := newPagesCollector(sourceSpec, loggers.NewErrorLogger(), nil,
-			&testPagesCollectorProcessor{waitErr: errors.New("failed")})
-		c.Assert(coll.Collect(), qt.Not(qt.IsNil))
-	})
 }
 
 type testPagesCollectorProcessor struct {

@@ -70,21 +70,46 @@ func BenchmarkGetPage(b *testing.B) {
 	}
 }
 
-func BenchmarkGetPageRegular(b *testing.B) {
+func createGetPageRegularBenchmarkSite(t testing.TB) *Site {
+
 	var (
-		c       = qt.New(b)
+		c       = qt.New(t)
 		cfg, fs = newTestCfg()
-		r       = rand.New(rand.NewSource(time.Now().UnixNano()))
 	)
+
+	pc := func(title string) string {
+		return fmt.Sprintf(pageCollectionsPageTemplate, title)
+	}
 
 	for i := 0; i < 10; i++ {
 		for j := 0; j < 100; j++ {
-			content := fmt.Sprintf(pageCollectionsPageTemplate, fmt.Sprintf("Title%d_%d", i, j))
-			writeSource(b, fs, filepath.Join("content", fmt.Sprintf("sect%d", i), fmt.Sprintf("page%d.md", j)), content)
+			content := pc(fmt.Sprintf("Title%d_%d", i, j))
+			writeSource(c, fs, filepath.Join("content", fmt.Sprintf("sect%d", i), fmt.Sprintf("page%d.md", j)), content)
 		}
 	}
 
-	s := buildSingleSite(b, deps.DepsCfg{Fs: fs, Cfg: cfg}, BuildCfg{SkipRender: true})
+	return buildSingleSite(c, deps.DepsCfg{Fs: fs, Cfg: cfg}, BuildCfg{SkipRender: true})
+
+}
+
+func TestBenchmarkGetPageRegular(t *testing.T) {
+	c := qt.New(t)
+	s := createGetPageRegularBenchmarkSite(t)
+
+	for i := 0; i < 10; i++ {
+		pp := path.Join(fmt.Sprintf("sect%d", i), fmt.Sprintf("page%d.md", i))
+		page, _ := s.getPageNew(nil, pp)
+		c.Assert(page, qt.Not(qt.IsNil), qt.Commentf(pp))
+	}
+}
+
+func BenchmarkGetPageRegular(b *testing.B) {
+	var (
+		c = qt.New(b)
+		r = rand.New(rand.NewSource(time.Now().UnixNano()))
+	)
+
+	s := createGetPageRegularBenchmarkSite(b)
 
 	pagePaths := make([]string, b.N)
 
@@ -99,14 +124,15 @@ func BenchmarkGetPageRegular(b *testing.B) {
 	}
 }
 
-type testCase struct {
+type getPageTest struct {
 	kind          string
 	context       page.Page
-	path          []string
+	pathVariants  []string
 	expectedTitle string
 }
 
-func (t *testCase) check(p page.Page, err error, errorMsg string, c *qt.C) {
+func (t *getPageTest) check(p page.Page, err error, errorMsg string, c *qt.C) {
+	c.Helper()
 	errorComment := qt.Commentf(errorMsg)
 	switch t.kind {
 	case "Ambiguous":
@@ -130,30 +156,38 @@ func TestGetPage(t *testing.T) {
 		c       = qt.New(t)
 	)
 
+	pc := func(title string) string {
+		return fmt.Sprintf(pageCollectionsPageTemplate, title)
+	}
+
 	for i := 0; i < 10; i++ {
 		for j := 0; j < 10; j++ {
-			content := fmt.Sprintf(pageCollectionsPageTemplate, fmt.Sprintf("Title%d_%d", i, j))
+			content := pc(fmt.Sprintf("Title%d_%d", i, j))
 			writeSource(t, fs, filepath.Join("content", fmt.Sprintf("sect%d", i), fmt.Sprintf("page%d.md", j)), content)
 		}
 	}
 
-	content := fmt.Sprintf(pageCollectionsPageTemplate, "home page")
+	content := pc("home page")
 	writeSource(t, fs, filepath.Join("content", "_index.md"), content)
 
-	content = fmt.Sprintf(pageCollectionsPageTemplate, "about page")
+	content = pc("about page")
 	writeSource(t, fs, filepath.Join("content", "about.md"), content)
 
-	content = fmt.Sprintf(pageCollectionsPageTemplate, "section 3")
+	content = pc("section 3")
 	writeSource(t, fs, filepath.Join("content", "sect3", "_index.md"), content)
 
-	content = fmt.Sprintf(pageCollectionsPageTemplate, "UniqueBase")
-	writeSource(t, fs, filepath.Join("content", "sect3", "unique.md"), content)
+	writeSource(t, fs, filepath.Join("content", "sect3", "unique.md"), pc("UniqueBase"))
+	writeSource(t, fs, filepath.Join("content", "sect3", "Unique2.md"), pc("UniqueBase2"))
 
-	content = fmt.Sprintf(pageCollectionsPageTemplate, "another sect7")
+	content = pc("another sect7")
 	writeSource(t, fs, filepath.Join("content", "sect3", "sect7", "_index.md"), content)
 
-	content = fmt.Sprintf(pageCollectionsPageTemplate, "deep page")
+	content = pc("deep page")
 	writeSource(t, fs, filepath.Join("content", "sect3", "subsect", "deep.md"), content)
+
+	// Bundle variants
+	writeSource(t, fs, filepath.Join("content", "sect3", "b1", "index.md"), pc("b1 bundle"))
+	writeSource(t, fs, filepath.Join("content", "sect3", "index", "index.md"), pc("index bundle"))
 
 	s := buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg}, BuildCfg{SkipRender: true})
 
@@ -161,10 +195,10 @@ func TestGetPage(t *testing.T) {
 	c.Assert(err, qt.IsNil)
 	c.Assert(sec3, qt.Not(qt.IsNil))
 
-	tests := []testCase{
+	tests := []getPageTest{
 		// legacy content root relative paths
-		{page.KindHome, nil, []string{}, "home page"},
-		{page.KindPage, nil, []string{"about.md"}, "about page"},
+		{page.KindHome, nil, []string{""}, "home page"},
+		{page.KindPage, nil, []string{"about.md", "ABOUT.md"}, "about page"},
 		{page.KindSection, nil, []string{"sect3"}, "section 3"},
 		{page.KindPage, nil, []string{"sect3/page1.md"}, "Title3_1"},
 		{page.KindPage, nil, []string{"sect4/page2.md"}, "Title4_2"},
@@ -173,7 +207,8 @@ func TestGetPage(t *testing.T) {
 		{page.KindPage, nil, []string{filepath.FromSlash("sect5/page3.md")}, "Title5_3"}, //test OS-specific path
 
 		// shorthand refs (potentially ambiguous)
-		{page.KindPage, nil, []string{"unique.md"}, "UniqueBase"},
+		{page.KindPage, nil, []string{"unique.md", "unique"}, "UniqueBase"},
+		{page.KindPage, nil, []string{"Unique2.md", "unique2.md", "unique2"}, "UniqueBase2"},
 		{"Ambiguous", nil, []string{"page1.md"}, ""},
 
 		// ISSUE: This is an ambiguous ref, but because we have to support the legacy
@@ -183,15 +218,17 @@ func TestGetPage(t *testing.T) {
 		{page.KindSection, nil, []string{"sect7"}, "Sect7s"},
 
 		// absolute paths
-		{page.KindHome, nil, []string{"/"}, "home page"},
-		{page.KindPage, nil, []string{"/about.md"}, "about page"},
+		{page.KindHome, nil, []string{"/", ""}, "home page"},
+		{page.KindPage, nil, []string{"/about.md", "/about"}, "about page"},
 		{page.KindSection, nil, []string{"/sect3"}, "section 3"},
-		{page.KindPage, nil, []string{"/sect3/page1.md"}, "Title3_1"},
+		{page.KindPage, nil, []string{"/sect3/page1.md", "/Sect3/Page1.md"}, "Title3_1"},
 		{page.KindPage, nil, []string{"/sect4/page2.md"}, "Title4_2"},
 		{page.KindSection, nil, []string{"/sect3/sect7"}, "another sect7"},
 		{page.KindPage, nil, []string{"/sect3/subsect/deep.md"}, "deep page"},
 		{page.KindPage, nil, []string{filepath.FromSlash("/sect5/page3.md")}, "Title5_3"}, //test OS-specific path
-		{page.KindPage, nil, []string{"/sect3/unique.md"}, "UniqueBase"},                  //next test depends on this page existing
+		{page.KindPage, nil, []string{"/sect3/unique.md"}, "UniqueBase"},
+		{page.KindPage, nil, []string{"/sect3/Unique2.md", "/sect3/unique2.md", "/sect3/unique2", "/sect3/Unique2"}, "UniqueBase2"},
+		//next test depends on this page existing
 		// {"NoPage", nil, []string{"/unique.md"}, ""},  // ISSUE #4969: this is resolving to /sect3/unique.md
 		{"NoPage", nil, []string{"/missing-page.md"}, ""},
 		{"NoPage", nil, []string{"/missing-section"}, ""},
@@ -220,27 +257,36 @@ func TestGetPage(t *testing.T) {
 		{page.KindPage, sec3, []string{"/sect4/page2.md"}, "Title4_2"},
 		{page.KindPage, sec3, []string{"/sect3/subsect/deep.md"}, "deep page"}, //next test depends on this page existing
 		{"NoPage", sec3, []string{"/subsect/deep.md"}, ""},
+
+		// Taxonomies
+		{page.KindTaxonomyTerm, nil, []string{"categories"}, "Categories"},
+		{page.KindTaxonomy, nil, []string{"categories/hugo", "categories/Hugo"}, "Hugo"},
+
+		// Bundle variants
+		{page.KindPage, nil, []string{"sect3/b1", "sect3/b1/index.md", "sect3/b1/index.en.md"}, "b1 bundle"},
+		{page.KindPage, nil, []string{"sect3/index/index.md", "sect3/index"}, "index bundle"},
 	}
 
-	for _, test := range tests {
-		errorMsg := fmt.Sprintf("Test case %s %v -> %s", test.context, test.path, test.expectedTitle)
+	for i, test := range tests {
+		c.Run(fmt.Sprintf("t%d", i+1), func(c *qt.C) {
+			errorMsg := fmt.Sprintf("Test case %v %v -> %s", test.context, test.pathVariants, test.expectedTitle)
 
-		// test legacy public Site.GetPage (which does not support page context relative queries)
-		if test.context == nil {
-			args := append([]string{test.kind}, test.path...)
-			page, err := s.Info.GetPage(args...)
-			test.check(page, err, errorMsg, c)
-		}
+			// test legacy public Site.GetPage (which does not support page context relative queries)
+			if test.context == nil {
+				for _, ref := range test.pathVariants {
+					args := append([]string{test.kind}, ref)
+					page, err := s.Info.GetPage(args...)
+					test.check(page, err, errorMsg, c)
+				}
+			}
 
-		// test new internal Site.getPageNew
-		var ref string
-		if len(test.path) == 1 {
-			ref = filepath.ToSlash(test.path[0])
-		} else {
-			ref = path.Join(test.path...)
-		}
-		page2, err := s.getPageNew(test.context, ref)
-		test.check(page2, err, errorMsg, c)
+			// test new internal Site.getPageNew
+			for _, ref := range test.pathVariants {
+				page2, err := s.getPageNew(test.context, ref)
+				test.check(page2, err, errorMsg, c)
+			}
+
+		})
 	}
 
 }
