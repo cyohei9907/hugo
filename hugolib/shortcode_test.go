@@ -34,10 +34,12 @@ import (
 )
 
 func CheckShortCodeMatch(t *testing.T, input, expected string, withTemplate func(templ tpl.TemplateHandler) error) {
+	t.Helper()
 	CheckShortCodeMatchAndError(t, input, expected, withTemplate, false)
 }
 
 func CheckShortCodeMatchAndError(t *testing.T, input, expected string, withTemplate func(templ tpl.TemplateHandler) error, expectError bool) {
+	t.Helper()
 
 	cfg, fs := newTestCfg()
 	c := qt.New(t)

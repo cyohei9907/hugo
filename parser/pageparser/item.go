@@ -58,12 +58,12 @@ func (i Item) IsShortcodeClose() bool {
 	return i.Type == tScClose
 }
 
-func (i Item) IsShortcodeParam() bool {
-	return i.Type == tScParam
+func (i Item) IsShortcodeParamName() bool {
+	return i.Type == tScParamName
 }
 
 func (i Item) IsShortcodeParamVal() bool {
-	return i.Type == tScParamVal
+	return i.Type >= tScParamString && i.Type <= tScParamFloat
 }
 
 func (i Item) IsShortcodeMarkupDelimiter() bool {
@@ -124,8 +124,11 @@ const (
 	tScClose
 	tScName
 	tScNameInline
-	tScParam
-	tScParamVal
+	tScParamName
+	tScParamString
+	tScParamBool
+	tScParamInt
+	tScParamFloat
 
 	tText // plain text
 

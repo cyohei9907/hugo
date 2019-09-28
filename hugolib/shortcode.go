@@ -533,38 +533,33 @@ Loop:
 		case currItem.IsInlineShortcodeName():
 			sc.name = currItem.ValStr()
 			sc.isInline = true
-		case currItem.IsShortcodeParam():
-			if !pt.IsValueNext() {
-				continue
-			} else if pt.Peek().IsShortcodeParamVal() {
-				// named params
-				if sc.params == nil {
-					params := make(map[string]string)
-					params[currItem.ValStr()] = pt.Next().ValStr()
-					sc.params = params
-				} else {
-					if params, ok := sc.params.(map[string]string); ok {
-						params[currItem.ValStr()] = pt.Next().ValStr()
-					} else {
-						return sc, errShortCodeIllegalState
-					}
-
-				}
+		case currItem.IsShortcodeParamVal():
+			// Positional param
+			if sc.params == nil {
+				var params []string
+				params = append(params, currItem.ValStr())
+				sc.params = params
 			} else {
-				// positional params
-				if sc.params == nil {
-					var params []string
+				if params, ok := sc.params.([]string); ok {
 					params = append(params, currItem.ValStr())
 					sc.params = params
 				} else {
-					if params, ok := sc.params.([]string); ok {
-						params = append(params, currItem.ValStr())
-						sc.params = params
-					} else {
-						return sc, errShortCodeIllegalState
-					}
-
+					return sc, errShortCodeIllegalState
 				}
+			}
+		case currItem.IsShortcodeParamName():
+			// Named param
+			if sc.params == nil {
+				params := make(map[string]string)
+				params[currItem.ValStr()] = pt.Next().ValStr()
+				sc.params = params
+			} else {
+				if params, ok := sc.params.(map[string]string); ok {
+					params[currItem.ValStr()] = pt.Next().ValStr()
+				} else {
+					return sc, errShortCodeIllegalState
+				}
+
 			}
 		case currItem.IsDone():
 			// handled by caller

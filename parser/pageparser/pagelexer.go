@@ -162,7 +162,7 @@ func (l *pageLexer) ignoreEscapesAndEmit(t ItemType) {
 	l.start = l.pos
 }
 
-// gets the current value (for debugging and error handling)
+// gets the current value.
 func (l *pageLexer) current() []byte {
 	return l.input[l.start:l.pos]
 }
@@ -205,6 +205,16 @@ func (l *pageLexer) consumeSpace() {
 	for {
 		r := l.next()
 		if r == eof || !unicode.IsSpace(r) {
+			l.backup()
+			return
+		}
+	}
+}
+
+func (l *pageLexer) consumeToSpace() {
+	for {
+		r := l.next()
+		if r == eof || unicode.IsSpace(r) {
 			l.backup()
 			return
 		}
@@ -452,8 +462,12 @@ func lexDone(l *pageLexer) stateFunc {
 	return nil
 }
 
-func (l *pageLexer) printCurrentInput() {
-	fmt.Printf("input[%d:]: %q", l.pos, string(l.input[l.pos:]))
+func (l *pageLexer) printCurrentItem() {
+	fmt.Printf("input[%d:%d]: '%v'\n", l.start, l.pos, string(l.input[l.start:l.pos]))
+}
+
+func (l *pageLexer) printCurrentPos() {
+	fmt.Printf("input[%d:]: '%v'\n", l.pos, string(l.input[l.pos:]))
 }
 
 // state helpers

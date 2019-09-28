@@ -17,6 +17,10 @@
 // See slides here: http://cuddle.googlecode.com/hg/talk/lex.html
 package pageparser
 
+import (
+	"regexp"
+)
+
 type lexerShortcodeState struct {
 	currLeftDelimItem  ItemType
 	currRightDelimItem ItemType
@@ -89,11 +93,17 @@ func lexShortcodeParam(l *pageLexer, escapedQuoteStart bool) stateFunc {
 
 	first := true
 	nextEq := false
+	whitespace := 0
 
 	var r rune
 
 	for {
 		r = l.next()
+		if isSpace(r) {
+			whitespace += l.width
+			continue
+		}
+
 		if first {
 			if r == '"' {
 				// a positional param with quotes
@@ -102,7 +112,7 @@ func lexShortcodeParam(l *pageLexer, escapedQuoteStart bool) stateFunc {
 				}
 				l.paramElements = 1
 				l.backup()
-				return lexShortcodeQuotedParamVal(l, !escapedQuoteStart, tScParam)
+				return lexShortcodeQuotedParamVal(l, !escapedQuoteStart)
 			}
 			first = false
 		} else if r == '=' {
@@ -112,7 +122,7 @@ func lexShortcodeParam(l *pageLexer, escapedQuoteStart bool) stateFunc {
 			break
 		}
 
-		if !isAlphaNumericOrHyphen(r) {
+		if !isAlphaNumericOrHyphen(r) && r != '.' { // Floats have a period.
 			l.backup()
 			break
 		}
@@ -132,12 +142,42 @@ func lexShortcodeParam(l *pageLexer, escapedQuoteStart bool) stateFunc {
 		}
 	}
 
-	l.emit(tScParam)
-	return lexInsideShortcode
+	if nextEq {
+		l.pos -= whitespace
+		l.emit(tScParamName)
+		l.pos += whitespace
+		l.ignore()
+		return lexInsideShortcode
+	}
+
+	return lexShortcodeParamVal
 
 }
 
-func lexShortcodeQuotedParamVal(l *pageLexer, escapedQuotedValuesAllowed bool, typ ItemType) stateFunc {
+var (
+	boolRe  = regexp.MustCompile(`^(true)|(false)$`)
+	intRe   = regexp.MustCompile(`^[-+]?\d+$`)
+	floatRe = regexp.MustCompile(`^[-+]?\d*\.\d+$`)
+)
+
+// Either a string, boolean (true/false) or a number (int or float)
+func lexShortcodeParamVal(l *pageLexer) stateFunc {
+	val := l.current()
+
+	if boolRe.Match(val) {
+		l.emit(tScParamBool)
+	} else if intRe.Match(val) {
+		l.emit(tScParamInt)
+	} else if floatRe.Match(val) {
+		l.emit(tScParamFloat)
+	} else {
+		l.emit(tScParamString)
+	}
+
+	return lexInsideShortcode
+}
+
+func lexShortcodeQuotedParamVal(l *pageLexer, escapedQuotedValuesAllowed bool) stateFunc {
 	openQuoteFound := false
 	escapedInnerQuoteFound := false
 	escapedQuoteState := 0
@@ -151,7 +191,7 @@ Loop:
 					l.backup()
 					break Loop
 				} else if openQuoteFound {
-					// the coming quoute is inside
+					// the coming quote is inside
 					escapedInnerQuoteFound = true
 					escapedQuoteState = 1
 				}
@@ -171,14 +211,13 @@ Loop:
 			} else {
 				escapedQuoteState = 0
 			}
-
 		}
 	}
 
 	if escapedInnerQuoteFound {
-		l.ignoreEscapesAndEmit(typ)
+		l.ignoreEscapesAndEmit(tScParamString)
 	} else {
-		l.emit(typ)
+		l.emit(tScParamString)
 	}
 
 	r := l.next()
@@ -274,7 +313,15 @@ func lexInsideShortcode(l *pageLexer) stateFunc {
 		l.ignore()
 	case r == '=':
 		l.ignore()
-		return lexShortcodeQuotedParamVal(l, l.peek() != '\\', tScParamVal)
+		l.consumeSpace()
+		l.ignore()
+		peek := l.peek()
+		if peek != '"' && peek != '\\' {
+			// Not quoted
+			l.consumeToSpace()
+			return lexShortcodeParamVal
+		}
+		return lexShortcodeQuotedParamVal(l, peek != '\\')
 	case r == '/':
 		if l.currShortcodeName == "" {
 			return l.errorf("got closing shortcode, but none is open")
