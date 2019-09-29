@@ -150,6 +150,10 @@ func lexShortcodeParam(l *pageLexer, escapedQuoteStart bool) stateFunc {
 		return lexInsideShortcode
 	}
 
+	if whitespace > 0 {
+		//l.pos -= whitespace
+	}
+
 	return lexShortcodeParamVal
 
 }
